@@ -2,11 +2,24 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'constants.dart';
 import 'formatters.dart'; 
+import 'screens/teste_estoque_screen.dart';
 
-void main() => runApp(const AppLanchonete());
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: 'https://tlpfusvvypkmggyxjbrw.supabase.co',
+    anonKey: 'sb_publishable_QIjcG1GfDqCw2PRsZhW9sQ_5YdpZUma',
+  );
+
+  runApp(const AppLanchonete());
+}
+
 
 // =============================================================================
 // --- 1. MODELOS DE DADOS ---
@@ -136,7 +149,53 @@ class AppLanchonete extends StatelessWidget {
         elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(backgroundColor: corPrimaria, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15))),
         inputDecorationTheme: const InputDecorationTheme(filled: true, fillColor: Colors.white, border: OutlineInputBorder(), floatingLabelBehavior: FloatingLabelBehavior.always),
       ),
-      home: const TelaCardapioCliente(),
+      home: const PainelTesteCompleto(),
+    );
+  }
+}
+
+class PainelTesteCompleto extends StatefulWidget {
+  const PainelTesteCompleto({super.key});
+
+  @override
+  State<PainelTesteCompleto> createState() => _PainelTesteCompletoState();
+}
+
+class _PainelTesteCompletoState extends State<PainelTesteCompleto> {
+  int _abaAtual = 0;
+
+  late final List<Widget> _abas = const [
+    TelaCardapioCliente(),
+    TelaTesteEstoque(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _abaAtual,
+        children: _abas,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _abaAtual,
+        onDestinationSelected: (value) {
+          setState(() {
+            _abaAtual = value;
+          });
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.storefront_outlined),
+            selectedIcon: Icon(Icons.storefront),
+            label: 'Sistema',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.inventory_2_outlined),
+            selectedIcon: Icon(Icons.inventory_2),
+            label: 'Estoque',
+          ),
+        ],
+      ),
     );
   }
 }
@@ -737,7 +796,7 @@ class _TelaCheckoutExpressoState extends State<TelaCheckoutExpresso> {
                           children: [
                             Expanded(
                               child: DropdownButtonFormField<String>(
-                                value: _formaPagamento, 
+                                initialValue: _formaPagamento, 
                                 items: ['PIX', 'CRÉDITO', 'DÉBITO', 'DINHEIRO'].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(), 
                                 onChanged: (v) => setState(() { _formaPagamento = v!; _precisaTroco = false; _trocoPara.clear(); }), 
                                 decoration: const InputDecoration(labelText: 'Forma de Pagamento')
@@ -749,7 +808,7 @@ class _TelaCheckoutExpressoState extends State<TelaCheckoutExpresso> {
                                 child: Column(
                                   children: [
                                     SwitchListTile(
-                                      title: const Text("Precisa de troco?"), activeColor: Colors.green, value: _precisaTroco, 
+                                      title: const Text("Precisa de troco?"), activeThumbColor: Colors.green, value: _precisaTroco, 
                                       onChanged: (v) => setState(() => _precisaTroco = v)
                                     ), 
                                     if (_precisaTroco) 
@@ -939,6 +998,17 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> {
 
 class TelaControleEstoqueRapido extends StatefulWidget { const TelaControleEstoqueRapido({super.key}); @override State<TelaControleEstoqueRapido> createState() => _TelaControleEstoqueRapidoState(); }
 class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
+  final TextEditingController _buscaController = TextEditingController();
+  String _filtroCategoria = 'Todas';
+  bool _mostrarApenasAlertas = false;
+  bool _simulacaoReajusteAtiva = false;
+  double _reajustePercentual = 0;
+
+  @override
+  void dispose() {
+    _buscaController.dispose();
+    super.dispose();
+  }
 
   // Determina o status visual de cada produto
   _StatusEstoque _getStatus(Produto p) {
@@ -947,25 +1017,103 @@ class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
     return _StatusEstoque.saudavel;
   }
 
+  double _percentualCustoPorCategoria(String categoria) {
+    switch (categoria.toLowerCase()) {
+      case 'lanches':
+        return 0.42;
+      case 'porções':
+      case 'porcoes':
+        return 0.38;
+      case 'bebidas':
+        return 0.30;
+      case 'sobremesas':
+        return 0.36;
+      default:
+        return 0.40;
+    }
+  }
+
+  double _precoConsiderado(Produto p) {
+    if (!_simulacaoReajusteAtiva) return p.preco;
+    final fator = 1 + (_reajustePercentual / 100);
+    return p.preco * fator;
+  }
+
+  double _custoUnitarioEstimado(Produto p) {
+    return _precoConsiderado(p) * _percentualCustoPorCategoria(p.categoria);
+  }
+
+  double _margemUnitarioEstimado(Produto p) {
+    return _precoConsiderado(p) - _custoUnitarioEstimado(p);
+  }
+
+  double _margemPercentualEstimado(Produto p) {
+    final preco = _precoConsiderado(p);
+    if (preco <= 0) return 0;
+    return (_margemUnitarioEstimado(p) / preco) * 100;
+  }
+
+  bool _atendeFiltro(Produto p) {
+    final busca = _buscaController.text.trim().toLowerCase();
+    final nome = p.nome.toLowerCase();
+    final categoriaOk = _filtroCategoria == 'Todas' || p.categoria == _filtroCategoria;
+    final alertaOk = !_mostrarApenasAlertas || _getStatus(p) != _StatusEstoque.saudavel;
+    final buscaOk = busca.isEmpty || nome.contains(busca);
+    return categoriaOk && alertaOk && buscaOk;
+  }
+
+  List<String> _categoriasDisponiveis() {
+    final categorias = cardapio.map((p) => p.categoria).toSet().toList()..sort();
+    return ['Todas', ...categorias];
+  }
+
   Widget _buildHeader(List<Produto> lista) {
     final esgotados = lista.where((p) => _getStatus(p) == _StatusEstoque.esgotado).length;
     final criticos  = lista.where((p) => _getStatus(p) == _StatusEstoque.critico).length;
     final saudaveis = lista.where((p) => _getStatus(p) == _StatusEstoque.saudavel).length;
+    final valorEstimado = lista.fold<double>(0, (soma, p) => soma + (_precoConsiderado(p) * p.estoqueAtual));
+    final margemEstoque = lista.fold<double>(0, (soma, p) => soma + (_margemUnitarioEstimado(p) * p.estoqueAtual));
+    final margemMedia = lista.isEmpty ? 0.0 : lista.fold<double>(0, (soma, p) => soma + _margemPercentualEstimado(p)) / lista.length;
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, 2))]),
-      child: Row(
+      child: Wrap(
+        runSpacing: 10,
+        spacing: 10,
         children: [
-          const Icon(Icons.inventory_2, color: Colors.blueGrey, size: 28),
-          const SizedBox(width: 16),
-          const Text("Painel de Estoque", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const Spacer(),
+          const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.inventory_2, color: Colors.blueGrey, size: 28),
+              SizedBox(width: 10),
+              Text("Painel de Estoque", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ],
+          ),
           _buildChipResumo("Esgotados", esgotados, Colors.red, Icons.block),
-          const SizedBox(width: 10),
           _buildChipResumo("Críticos", criticos, Colors.orange, Icons.warning_amber),
-          const SizedBox(width: 10),
           _buildChipResumo("Saudáveis", saudaveis, Colors.green, Icons.check_circle_outline),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(color: Colors.indigo.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.indigo.withValues(alpha: 0.4))),
+            child: Text("Valor estimado: ${CurrencyHelper.formatCurrency(valorEstimado)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 13)),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(color: Colors.teal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.teal.withValues(alpha: 0.4))),
+            child: Text("Margem total est.: ${CurrencyHelper.formatCurrency(margemEstoque)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal, fontSize: 13)),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(color: Colors.deepPurple.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.4))),
+            child: Text("Margem media: ${margemMedia.toStringAsFixed(1)}%", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple, fontSize: 13)),
+          ),
+          if (_simulacaoReajusteAtiva)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.orange.withValues(alpha: 0.4))),
+              child: Text("Simulação ativa: ${_reajustePercentual.toStringAsFixed(1)}%", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13)),
+            ),
         ],
       ),
     );
@@ -1001,6 +1149,11 @@ class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
 
   Widget _buildCardProduto(Produto p) {
     final status = _getStatus(p);
+    final precoBase = p.preco;
+    final precoSimulado = _precoConsiderado(p);
+    final custoUnitarioEst = _custoUnitarioEstimado(p);
+    final margemUnitEst = _margemUnitarioEstimado(p);
+    final margemPctEst = _margemPercentualEstimado(p);
     Color borderColor;
     Color bgColor;
     Color badgeColor;
@@ -1056,9 +1209,25 @@ class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
           dense: false,
           minVerticalPadding: 10,
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          leading: CircleAvatar(
-            backgroundColor: Colors.blueGrey.withValues(alpha: 0.12),
-            child: Icon(_getIconeCategoria(p.categoria), color: Colors.blueGrey),
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              width: 58,
+              height: 58,
+              child: p.imagemUrl.isEmpty
+                  ? Container(
+                      color: Colors.blueGrey.withValues(alpha: 0.12),
+                      child: Icon(_getIconeCategoria(p.categoria), color: Colors.blueGrey),
+                    )
+                  : Image.network(
+                      p.imagemUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.blueGrey.withValues(alpha: 0.12),
+                        child: Icon(_getIconeCategoria(p.categoria), color: Colors.blueGrey),
+                      ),
+                    ),
+            ),
           ),
           title: Text(
             p.nome.isEmpty ? p.idProduto : p.nome,
@@ -1072,6 +1241,18 @@ class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
             children: [
               const SizedBox(height: 2),
               Text(p.categoria, style: const TextStyle(fontSize: 12, color: Colors.blueGrey)),
+              const SizedBox(height: 2),
+              Text(
+                _simulacaoReajusteAtiva
+                    ? "Preço base: ${CurrencyHelper.formatCurrency(precoBase)}  |  Simulado: ${CurrencyHelper.formatCurrency(precoSimulado)}"
+                    : "Preço de venda: ${CurrencyHelper.formatCurrency(precoBase)}",
+                style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                "Custo est.: ${CurrencyHelper.formatCurrency(custoUnitarioEst)}  |  Margem est.: ${CurrencyHelper.formatCurrency(margemUnitEst)} (${margemPctEst.toStringAsFixed(1)}%)",
+                style: const TextStyle(fontSize: 12, color: Colors.teal, fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 2),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1087,7 +1268,7 @@ class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
             ],
           ),
           trailing: SizedBox(
-            width: 130,
+            width: 150,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -1096,11 +1277,11 @@ class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
                   icon: Icon(Icons.remove_circle, color: p.estoqueAtual <= 0 ? Colors.grey : Colors.red),
                 ),
                 SizedBox(
-                  width: 28,
+                  width: 34,
                   child: Text(
                     "${p.estoqueAtual}",
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                 ),
                 IconButton(
@@ -1119,18 +1300,152 @@ class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
   Widget build(BuildContext context) {
     // ORDENAÇÃO: menor estoque primeiro para priorizar atenção
     final listaOrdenada = [...cardapio]..sort((a, b) => a.estoqueAtual.compareTo(b.estoqueAtual));
+    final listaFiltrada = listaOrdenada.where(_atendeFiltro).toList();
+    final categorias = _categoriasDisponiveis();
 
     return Padding(
       padding: const EdgeInsets.all(32.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(listaOrdenada),
-          Expanded(
-            child: ListView.builder(
-              itemCount: listaOrdenada.length,
-              itemBuilder: (context, index) => _buildCardProduto(listaOrdenada[index]),
+          _buildHeader(listaFiltrada),
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _buscaController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Buscar produto no estoque',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: categorias
+                              .map(
+                                (categoria) => Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: ChoiceChip(
+                                    label: Text(categoria),
+                                    selected: _filtroCategoria == categoria,
+                                    onSelected: (_) {
+                                      setState(() {
+                                        _filtroCategoria = categoria;
+                                      });
+                                    },
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    FilterChip(
+                      label: const Text('Somente alertas'),
+                      selected: _mostrarApenasAlertas,
+                      onSelected: (value) {
+                        setState(() {
+                          _mostrarApenasAlertas = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Switch(
+                            value: _simulacaoReajusteAtiva,
+                            onChanged: (value) {
+                              setState(() {
+                                _simulacaoReajusteAtiva = value;
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                          const Expanded(
+                            child: Text(
+                              'Simular reajuste de preço em lote (não altera dados salvos)',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _reajustePercentual = 0;
+                                _simulacaoReajusteAtiva = false;
+                              });
+                            },
+                            icon: const Icon(Icons.restart_alt),
+                            label: const Text('Resetar'),
+                          ),
+                        ],
+                      ),
+                      Slider(
+                        value: _reajustePercentual,
+                        min: -20,
+                        max: 40,
+                        divisions: 60,
+                        label: '${_reajustePercentual.toStringAsFixed(1)}%',
+                        onChanged: (value) {
+                          setState(() {
+                            _reajustePercentual = value;
+                          });
+                        },
+                      ),
+                      Text(
+                        'Reajuste configurado: ${_reajustePercentual.toStringAsFixed(1)}%  |  Use para demonstrar cenário comercial sem impactar cadastro real.',
+                        style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: listaFiltrada.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Nenhum produto encontrado para os filtros selecionados.',
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: listaFiltrada.length,
+                    itemBuilder: (context, index) => _buildCardProduto(listaFiltrada[index]),
+                  ),
           ),
         ],
       ),
@@ -1142,7 +1457,7 @@ enum _StatusEstoque { esgotado, critico, saudavel }
 
 class TelaGestaoEquipe extends StatefulWidget { const TelaGestaoEquipe({super.key}); @override State<TelaGestaoEquipe> createState() => _TelaGestaoEquipeState(); }
 class _TelaGestaoEquipeState extends State<TelaGestaoEquipe> {
-  @override Widget build(BuildContext context) { return Padding(padding: const EdgeInsets.all(32.0), child: Column(children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Equipe e Acessos (RH)", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), ElevatedButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaCadastroUsuario())).then((_) => setState((){})), icon: const Icon(Icons.person_add), label: const Text("NOVO FUNCIONÁRIO"))]), const SizedBox(height: 20), Expanded(child: ListView.builder(itemCount: listaUsuarios.length, itemBuilder: (context, index) { final u = listaUsuarios[index]; return Card(margin: const EdgeInsets.only(bottom: 10), child: ListTile(leading: CircleAvatar(backgroundColor: u.situacaoConta ? Colors.blue : Colors.grey, child: const Icon(Icons.person, color: Colors.white)), title: Text(u.nomeCompleto, style: TextStyle(fontWeight: FontWeight.bold, decoration: u.situacaoConta ? null : TextDecoration.lineThrough)), subtitle: Text("Login: ${u.idUsuario} | Cargo: ${u.cargo}"), trailing: Row(mainAxisSize: MainAxisSize.min, children: [const Text("Ativo: ", style: TextStyle(color: Colors.grey)), Switch(value: u.situacaoConta, activeColor: Colors.green, onChanged: (bool valor) { if (u.idUsuario == 'ANDRE' && valor == false) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("O Admin Mestre não pode ser desativado!"), backgroundColor: Colors.red)); return; } setState(() => u.situacaoConta = valor); }), IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TelaCadastroUsuario(usuarioOriginal: u))).then((_) => setState((){})))]))); }))])); }
+  @override Widget build(BuildContext context) { return Padding(padding: const EdgeInsets.all(32.0), child: Column(children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Equipe e Acessos (RH)", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), ElevatedButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaCadastroUsuario())).then((_) => setState((){})), icon: const Icon(Icons.person_add), label: const Text("NOVO FUNCIONÁRIO"))]), const SizedBox(height: 20), Expanded(child: ListView.builder(itemCount: listaUsuarios.length, itemBuilder: (context, index) { final u = listaUsuarios[index]; return Card(margin: const EdgeInsets.only(bottom: 10), child: ListTile(leading: CircleAvatar(backgroundColor: u.situacaoConta ? Colors.blue : Colors.grey, child: const Icon(Icons.person, color: Colors.white)), title: Text(u.nomeCompleto, style: TextStyle(fontWeight: FontWeight.bold, decoration: u.situacaoConta ? null : TextDecoration.lineThrough)), subtitle: Text("Login: ${u.idUsuario} | Cargo: ${u.cargo}"), trailing: Row(mainAxisSize: MainAxisSize.min, children: [const Text("Ativo: ", style: TextStyle(color: Colors.grey)), Switch(value: u.situacaoConta, activeThumbColor: Colors.green, onChanged: (bool valor) { if (u.idUsuario == 'ANDRE' && valor == false) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("O Admin Mestre não pode ser desativado!"), backgroundColor: Colors.red)); return; } setState(() => u.situacaoConta = valor); }), IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TelaCadastroUsuario(usuarioOriginal: u))).then((_) => setState((){})))]))); }))])); }
 }
 
 class TelaCadastroUsuario extends StatefulWidget { final Usuario? usuarioOriginal; const TelaCadastroUsuario({super.key, this.usuarioOriginal}); @override State<TelaCadastroUsuario> createState() => _TelaCadastroUsuarioState(); }
@@ -1150,7 +1465,7 @@ class _TelaCadastroUsuarioState extends State<TelaCadastroUsuario> {
   final _chaveForm = GlobalKey<FormState>(); final _idUsuario = TextEditingController(); final _nomeCompleto = TextEditingController(); final _senha = TextEditingController(); String _cargo = 'FUNCIONARIO';
   @override void initState() { super.initState(); if (widget.usuarioOriginal != null) { final u = widget.usuarioOriginal!; _idUsuario.text = u.idUsuario; _nomeCompleto.text = u.nomeCompleto; _senha.text = u.senha; _cargo = u.cargo; } }
   void _salvarUsuario() { if (_chaveForm.currentState!.validate()) { if (widget.usuarioOriginal != null) { Usuario u = widget.usuarioOriginal!; u.nomeCompleto = _nomeCompleto.text; u.senha = _senha.text; u.cargo = _cargo; } else { bool idJaExiste = listaUsuarios.any((u) => u.idUsuario == _idUsuario.text.toUpperCase()); if (idJaExiste) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Este Login já existe!"), backgroundColor: Colors.red)); return; } listaUsuarios.add(Usuario(idUsuario: _idUsuario.text.toUpperCase(), senha: _senha.text, nomeCompleto: _nomeCompleto.text, cargo: _cargo)); } Navigator.pop(context); } }
-  @override Widget build(BuildContext context) { bool ehEdicao = widget.usuarioOriginal != null; return Scaffold(appBar: AppBar(title: Text(ehEdicao ? "Editar Funcionário" : "Novo Funcionário")), body: Center(child: Container(constraints: const BoxConstraints(maxWidth: 600), padding: const EdgeInsets.all(32), child: Form(key: _chaveForm, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("Dados de Acesso", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)), const SizedBox(height: 15), TextFormField(controller: _nomeCompleto, autofocus: true, textInputAction: TextInputAction.next, inputFormatters: [PrimeiraLetraMaiusculaFormatter()], decoration: const InputDecoration(labelText: 'Nome Completo *', prefixIcon: Icon(Icons.badge)), validator: (v) => v!.isEmpty ? 'Obrigatório' : null), const SizedBox(height: 20), Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: TextFormField(controller: _idUsuario, enabled: !ehEdicao, inputFormatters: [UpperCaseTextFormatter()], decoration: const InputDecoration(labelText: 'Login (ID) *', hintText: 'Ex: MARCOS', prefixIcon: Icon(Icons.person)), validator: (v) => v!.isEmpty ? 'Obrigatório' : null)), const SizedBox(width: 15), Expanded(child: TextFormField(controller: _senha, obscureText: true, decoration: const InputDecoration(labelText: 'Senha Segura *', prefixIcon: Icon(Icons.lock)), validator: (v) => v!.isEmpty ? 'Obrigatório' : null))]), const SizedBox(height: 20), DropdownButtonFormField<String>(value: _cargo, decoration: const InputDecoration(labelText: 'Cargo / Permissão', prefixIcon: Icon(Icons.security)), items: ['ADMIN', 'FUNCIONARIO'].map((c) => DropdownMenuItem(value: c, child: Text(c == 'ADMIN' ? 'Administrador' : 'Atendente'))).toList(), onChanged: (v) => setState(() => _cargo = v!)), const SizedBox(height: 40), Row(mainAxisAlignment: MainAxisAlignment.end, children: [OutlinedButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.cancel), label: const Text("CANCELAR")), const SizedBox(width: 15), ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue), onPressed: _salvarUsuario, icon: const Icon(Icons.save), label: const Text("SALVAR"))])])))))); }
+  @override Widget build(BuildContext context) { bool ehEdicao = widget.usuarioOriginal != null; return Scaffold(appBar: AppBar(title: Text(ehEdicao ? "Editar Funcionário" : "Novo Funcionário")), body: Center(child: Container(constraints: const BoxConstraints(maxWidth: 600), padding: const EdgeInsets.all(32), child: Form(key: _chaveForm, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("Dados de Acesso", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)), const SizedBox(height: 15), TextFormField(controller: _nomeCompleto, autofocus: true, textInputAction: TextInputAction.next, inputFormatters: [PrimeiraLetraMaiusculaFormatter()], decoration: const InputDecoration(labelText: 'Nome Completo *', prefixIcon: Icon(Icons.badge)), validator: (v) => v!.isEmpty ? 'Obrigatório' : null), const SizedBox(height: 20), Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: TextFormField(controller: _idUsuario, enabled: !ehEdicao, inputFormatters: [UpperCaseTextFormatter()], decoration: const InputDecoration(labelText: 'Login (ID) *', hintText: 'Ex: MARCOS', prefixIcon: Icon(Icons.person)), validator: (v) => v!.isEmpty ? 'Obrigatório' : null)), const SizedBox(width: 15), Expanded(child: TextFormField(controller: _senha, obscureText: true, decoration: const InputDecoration(labelText: 'Senha Segura *', prefixIcon: Icon(Icons.lock)), validator: (v) => v!.isEmpty ? 'Obrigatório' : null))]), const SizedBox(height: 20), DropdownButtonFormField<String>(initialValue: _cargo, decoration: const InputDecoration(labelText: 'Cargo / Permissão', prefixIcon: Icon(Icons.security)), items: ['ADMIN', 'FUNCIONARIO'].map((c) => DropdownMenuItem(value: c, child: Text(c == 'ADMIN' ? 'Administrador' : 'Atendente'))).toList(), onChanged: (v) => setState(() => _cargo = v!)), const SizedBox(height: 40), Row(mainAxisAlignment: MainAxisAlignment.end, children: [OutlinedButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.cancel), label: const Text("CANCELAR")), const SizedBox(width: 15), ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue), onPressed: _salvarUsuario, icon: const Icon(Icons.save), label: const Text("SALVAR"))])])))))); }
 }
 
 // =============================================================================
@@ -1279,15 +1594,431 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
 // =============================================================================
 class TelaGestaoProdutos extends StatefulWidget { const TelaGestaoProdutos({super.key}); @override State<TelaGestaoProdutos> createState() => _TelaGestaoProdutosState(); }
 class _TelaGestaoProdutosState extends State<TelaGestaoProdutos> {
-  @override Widget build(BuildContext context) { return Padding(padding: const EdgeInsets.all(32.0), child: Column(children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Cadastro de Produtos", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), ElevatedButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaCadastroProduto())).then((_) => setState((){})), icon: const Icon(Icons.add), label: const Text("NOVO PRODUTO"))]), const SizedBox(height: 20), Expanded(child: ListView.builder(itemCount: cardapio.length, itemBuilder: (context, index) { final p = cardapio[index]; return Card(margin: const EdgeInsets.only(bottom: 10), child: ListTile(leading: CircleAvatar(backgroundImage: p.imagemUrl.isEmpty ? null : NetworkImage(p.imagemUrl), backgroundColor: Colors.grey[300], child: p.imagemUrl.isEmpty ? const Icon(Icons.fastfood, color: Colors.white) : null), title: Text(p.nome, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("${p.categoria} | R\$ ${p.preco.toStringAsFixed(2).replaceAll('.', ',')}"), trailing: IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TelaCadastroProduto(produtoOriginal: p))).then((_) => setState((){}))))); }))])); }
+  final TextEditingController _buscaController = TextEditingController();
+  String _categoriaFiltro = 'Todas';
+
+  @override
+  void dispose() {
+    _buscaController.dispose();
+    super.dispose();
+  }
+
+  String _imagemPadraoCategoria(String categoria) {
+    switch (categoria) {
+      case 'Lanches':
+        return 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=900&auto=format&fit=crop';
+      case 'Porções':
+        return 'https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?q=80&w=900&auto=format&fit=crop';
+      case 'Bebidas':
+        return 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=900&auto=format&fit=crop';
+      case 'Sobremesas':
+        return 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?q=80&w=900&auto=format&fit=crop';
+      default:
+        return '';
+    }
+  }
+
+  void _restaurarImagensAusentes() {
+    var atualizados = 0;
+    for (final produto in cardapio) {
+      if (produto.imagemUrl.trim().isEmpty) {
+        produto.imagemUrl = _imagemPadraoCategoria(produto.categoria);
+        atualizados++;
+      }
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          atualizados == 0
+              ? 'Nenhum produto sem imagem para restaurar.'
+              : '$atualizados produtos receberam imagem padrao da categoria.',
+        ),
+        backgroundColor: Colors.green,
+      ),
+    );
+    setState(() {});
+  }
+
+  bool _atendeFiltros(Produto p) {
+    final busca = _buscaController.text.trim().toLowerCase();
+    final categoriaOk = _categoriaFiltro == 'Todas' || p.categoria == _categoriaFiltro;
+    final buscaOk = busca.isEmpty || p.nome.toLowerCase().contains(busca);
+    return categoriaOk && buscaOk;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final categorias = cardapio.map((p) => p.categoria).toSet().toList()..sort();
+    final lista = cardapio.where(_atendeFiltros).toList();
+
+    return Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Cadastro de Produtos',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _restaurarImagensAusentes,
+                    icon: const Icon(Icons.image),
+                    label: const Text('RESTAURAR IMAGENS'),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const TelaCadastroProduto()),
+                    ).then((_) => setState(() {})),
+                    icon: const Icon(Icons.add),
+                    label: const Text('NOVO PRODUTO'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _buscaController,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Buscar produto',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  DropdownButton<String>(
+                    value: _categoriaFiltro,
+                    items: ['Todas', ...categorias]
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _categoriaFiltro = v ?? 'Todas'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: ListView.builder(
+              itemCount: lista.length,
+              itemBuilder: (context, index) {
+                final p = lista[index];
+                final imagem = p.imagemUrl.trim().isEmpty
+                    ? _imagemPadraoCategoria(p.categoria)
+                    : p.imagemUrl.trim();
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: ListTile(
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 52,
+                        height: 52,
+                        child: imagem.isEmpty
+                            ? Container(
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.fastfood, color: Colors.white),
+                              )
+                            : Image.network(
+                                imagem,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => Container(
+                                  color: Colors.grey[300],
+                                  child: const Icon(Icons.fastfood, color: Colors.white),
+                                ),
+                              ),
+                      ),
+                    ),
+                    title: Text(p.nome, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text('${p.categoria} | R\$ ${p.preco.toStringAsFixed(2).replaceAll('.', ',')} | Estoque: ${p.estoqueAtual}'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.orange),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => TelaCadastroProduto(produtoOriginal: p)),
+                      ).then((_) => setState(() {})),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class TelaCadastroProduto extends StatefulWidget { final Produto? produtoOriginal; const TelaCadastroProduto({super.key, this.produtoOriginal}); @override State<TelaCadastroProduto> createState() => _TelaCadastroProdutoState(); }
 class _TelaCadastroProdutoState extends State<TelaCadastroProduto> {
-  final _chaveForm = GlobalKey<FormState>(); final _nome = TextEditingController(); final _descricao = TextEditingController(); final _preco = TextEditingController(); final _imagemUrl = TextEditingController(); final _estoque = TextEditingController(); String _categoria = 'Lanches';
-  @override void initState() { super.initState(); if (widget.produtoOriginal != null) { final p = widget.produtoOriginal!; _nome.text = p.nome; _descricao.text = p.descricao; _preco.text = p.preco.toStringAsFixed(2).replaceAll('.', ','); _imagemUrl.text = p.imagemUrl; _categoria = p.categoria; _estoque.text = p.estoqueAtual.toString(); } else { _estoque.text = "50"; } }
-  void _salvarProduto() { if (_chaveForm.currentState!.validate()) { double precoLimpo = double.tryParse(_preco.text.replaceAll(',', '.')) ?? 0.0; int estoqueLimpo = int.tryParse(_estoque.text) ?? 0; if (widget.produtoOriginal != null) { Produto p = widget.produtoOriginal!; p.nome = _nome.text; p.descricao = _descricao.text; p.preco = precoLimpo; p.categoria = _categoria; p.imagemUrl = _imagemUrl.text; p.estoqueAtual = estoqueLimpo; } else { String novoID = "PROD-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}"; cardapio.add(Produto(idProduto: novoID, nome: _nome.text, descricao: _descricao.text, preco: precoLimpo, categoria: _categoria, imagemUrl: _imagemUrl.text, estoqueAtual: estoqueLimpo)); } Navigator.pop(context); } }
-  @override Widget build(BuildContext context) { return Scaffold(appBar: AppBar(title: Text(widget.produtoOriginal != null ? "Editar Produto" : "Novo Produto")), body: Center(child: Container(constraints: const BoxConstraints(maxWidth: 800), padding: const EdgeInsets.all(32), child: Form(key: _chaveForm, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("Dados do Produto", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)), const SizedBox(height: 15), Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 3, child: TextFormField(controller: _nome, autofocus: true, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Nome do Produto *', hintText: 'Ex: X-Salada'), validator: (v) => v!.isEmpty ? 'Obrigatório' : null)), const SizedBox(width: 15), Expanded(flex: 1, child: DropdownButtonFormField<String>(value: _categoria, decoration: const InputDecoration(labelText: 'Categoria'), items: ['Lanches', 'Porções', 'Bebidas', 'Sobremesas'].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(), onChanged: (v) => setState(() => _categoria = v!)))]), const SizedBox(height: 20), TextFormField(controller: _descricao, maxLines: 3, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Descrição (Aparece no Cardápio) *', hintText: 'Ex: Pão, carne, queijo...'), validator: (v) => v!.isEmpty ? 'Obrigatório' : null), const SizedBox(height: 20), Row(children: [Expanded(flex: 1, child: TextFormField(controller: _preco, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Preço de Venda (R\$) *', hintText: 'Ex: 25,00'), validator: (v) => v!.isEmpty ? 'Obrigatório' : null)), const SizedBox(width: 15), Expanded(flex: 1, child: TextFormField(controller: _estoque, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Estoque Inicial *', hintText: 'Ex: 50'), validator: (v) => v!.isEmpty ? 'Obrigatório' : null)), const SizedBox(width: 15), Expanded(flex: 3, child: TextFormField(controller: _imagemUrl, decoration: const InputDecoration(labelText: 'Link da Imagem (URL)', hintText: 'https://...'), onFieldSubmitted: (_) => _salvarProduto()))]), const SizedBox(height: 40), Row(mainAxisAlignment: MainAxisAlignment.end, children: [OutlinedButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.cancel), label: const Text("CANCELAR")), const SizedBox(width: 15), ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.orange), onPressed: _salvarProduto, icon: const Icon(Icons.save), label: const Text("SALVAR PRODUTO"))])])))))); }
+  final _chaveForm = GlobalKey<FormState>();
+  final _nome = TextEditingController();
+  final _descricao = TextEditingController();
+  final _preco = TextEditingController();
+  final _imagemUrl = TextEditingController();
+  final _estoque = TextEditingController();
+  String _categoria = 'Lanches';
+
+  String _imagemPadraoCategoria(String categoria) {
+    switch (categoria) {
+      case 'Lanches':
+        return 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=900&auto=format&fit=crop';
+      case 'Porções':
+        return 'https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?q=80&w=900&auto=format&fit=crop';
+      case 'Bebidas':
+        return 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=900&auto=format&fit=crop';
+      case 'Sobremesas':
+        return 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?q=80&w=900&auto=format&fit=crop';
+      default:
+        return '';
+    }
+  }
+
+  bool _urlImagemEhValida(String valor) {
+    final url = valor.trim();
+    if (url.isEmpty) return true;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+    final esquemaValido = uri.scheme == 'http' || uri.scheme == 'https';
+    return esquemaValido && uri.host.isNotEmpty;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.produtoOriginal != null) {
+      final p = widget.produtoOriginal!;
+      _nome.text = p.nome;
+      _descricao.text = p.descricao;
+      _preco.text = p.preco.toStringAsFixed(2).replaceAll('.', ',');
+      _imagemUrl.text = p.imagemUrl;
+      _categoria = p.categoria;
+      _estoque.text = p.estoqueAtual.toString();
+    } else {
+      _estoque.text = '50';
+      _imagemUrl.text = _imagemPadraoCategoria(_categoria);
+    }
+    _imagemUrl.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _nome.dispose();
+    _descricao.dispose();
+    _preco.dispose();
+    _imagemUrl.dispose();
+    _estoque.dispose();
+    super.dispose();
+  }
+
+  void _usarImagemPadraoCategoria() {
+    _imagemUrl.text = _imagemPadraoCategoria(_categoria);
+  }
+
+  void _salvarProduto() {
+    if (_chaveForm.currentState!.validate()) {
+      final precoLimpo = double.tryParse(_preco.text.replaceAll(',', '.')) ?? 0.0;
+      final estoqueLimpo = int.tryParse(_estoque.text) ?? 0;
+      final imagemFinal = _imagemUrl.text.trim().isEmpty
+          ? _imagemPadraoCategoria(_categoria)
+          : _imagemUrl.text.trim();
+
+      if (widget.produtoOriginal != null) {
+        final p = widget.produtoOriginal!;
+        p.nome = _nome.text;
+        p.descricao = _descricao.text;
+        p.preco = precoLimpo;
+        p.categoria = _categoria;
+        p.imagemUrl = imagemFinal;
+        p.estoqueAtual = estoqueLimpo;
+      } else {
+        final novoID = 'PROD-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+        cardapio.add(
+          Produto(
+            idProduto: novoID,
+            nome: _nome.text,
+            descricao: _descricao.text,
+            preco: precoLimpo,
+            categoria: _categoria,
+            imagemUrl: imagemFinal,
+            estoqueAtual: estoqueLimpo,
+          ),
+        );
+      }
+      Navigator.pop(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final imagemPreview = _imagemUrl.text.trim().isEmpty
+        ? _imagemPadraoCategoria(_categoria)
+        : _imagemUrl.text.trim();
+
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.produtoOriginal != null ? 'Editar Produto' : 'Novo Produto')),
+      body: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 900),
+          padding: const EdgeInsets.all(32),
+          child: Form(
+            key: _chaveForm,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Dados do Produto', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                  const SizedBox(height: 15),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextFormField(
+                          controller: _nome,
+                          autofocus: true,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(labelText: 'Nome do Produto *', hintText: 'Ex: X-Salada'),
+                          validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
+                        ),
+                      ),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        flex: 1,
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _categoria,
+                          decoration: const InputDecoration(labelText: 'Categoria'),
+                          items: ['Lanches', 'Porções', 'Bebidas', 'Sobremesas']
+                              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                              .toList(),
+                          onChanged: (v) => setState(() => _categoria = v!),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _descricao,
+                    maxLines: 3,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(labelText: 'Descrição (Aparece no Cardápio) *', hintText: 'Ex: Pão, carne, queijo...'),
+                    validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: _imagemUrl,
+                              decoration: const InputDecoration(labelText: 'Link da Imagem (URL)', hintText: 'https://...'),
+                              validator: (v) => _urlImagemEhValida(v ?? '')
+                                  ? null
+                                  : 'Informe uma URL válida (http/https)',
+                              onFieldSubmitted: (_) => _salvarProduto(),
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: OutlinedButton.icon(
+                                onPressed: _usarImagemPadraoCategoria,
+                                icon: const Icon(Icons.auto_awesome),
+                                label: const Text('Usar imagem padrão da categoria'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: _preco,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(labelText: 'Preço de Venda (R\$) *', hintText: 'Ex: 25,00'),
+                              validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
+                            ),
+                            const SizedBox(height: 10),
+                            TextFormField(
+                              controller: _estoque,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: 'Estoque Inicial *', hintText: 'Ex: 50'),
+                              validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('Preview da Imagem', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      height: 180,
+                      width: double.infinity,
+                      child: imagemPreview.isEmpty
+                          ? Container(
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.fastfood, size: 48, color: Colors.white),
+                            )
+                          : Image.network(
+                              imagemPreview,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.fastfood, size: 48, color: Colors.white),
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.cancel),
+                        label: const Text('CANCELAR'),
+                      ),
+                      const SizedBox(width: 15),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                        onPressed: _salvarProduto,
+                        icon: const Icon(Icons.save),
+                        label: const Text('SALVAR PRODUTO'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // =============================================================================

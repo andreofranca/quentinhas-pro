@@ -2,6 +2,20 @@
 
 A new Flutter project.
 
+## Supabase configuration
+
+This project reads Supabase credentials from compile-time defines.
+
+Run using:
+
+```bash
+flutter run \
+	--dart-define=SUPABASE_URL=YOUR_SUPABASE_URL \
+	--dart-define=SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+```
+
+If these values are missing, the app will stop at startup with a configuration error.
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.
