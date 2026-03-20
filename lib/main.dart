@@ -50,6 +50,19 @@ class ItemCarrinho {
   ItemCarrinho({required this.produto, this.quantidade = 1});
 }
 
+class ResultadoNotificacaoWhatsApp {
+  final bool enviadoFabrica;
+  final bool enviadoCliente;
+
+  const ResultadoNotificacaoWhatsApp({
+    required this.enviadoFabrica,
+    required this.enviadoCliente,
+  });
+
+  bool get ambosEnviados => enviadoFabrica && enviadoCliente;
+  bool get algumEnviado => enviadoFabrica || enviadoCliente;
+}
+
 class Pedido {
   final String numeroPedido, nomeCliente, telefoneCliente;
   String statusLogistico; 
@@ -62,6 +75,10 @@ class Pedido {
   final List<ItemCarrinho> itens;
   final double total;
   final DateTime dataHora;
+  bool notificacaoNovoPedidoFabrica;
+  bool notificacaoNovoPedidoCliente;
+  bool notificacaoDespachoFabrica;
+  bool notificacaoDespachoCliente;
 
   Pedido({
     required this.numeroPedido, 
@@ -76,7 +93,11 @@ class Pedido {
     required this.total, 
     required this.dataHora, 
     this.statusLogistico = 'NOVO', 
-    this.statusPagamento = 'AGUARDANDO'
+    this.statusPagamento = 'AGUARDANDO',
+    this.notificacaoNovoPedidoFabrica = false,
+    this.notificacaoNovoPedidoCliente = false,
+    this.notificacaoDespachoFabrica = false,
+    this.notificacaoDespachoCliente = false,
   });
 }
 
@@ -518,6 +539,114 @@ class _TelaCheckoutExpressoState extends State<TelaCheckoutExpresso> {
   double get subtotal => carrinhoAtual.fold(0, (total, item) => total + (item.produto.preco * item.quantidade)); 
   double get taxaAplicada => _tipoEntrega == 'ENTREGA' ? taxaEntregaFixa : 0.0; 
   double get valorTotal => subtotal + taxaAplicada;
+
+  String _normalizarTelefoneWhatsApp(String telefone) {
+    var telefoneLimpo = telefone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (!telefoneLimpo.startsWith(whatsappPais)) {
+      telefoneLimpo = '$whatsappPais$telefoneLimpo';
+    }
+    return telefoneLimpo;
+  }
+
+  Future<void> _abrirConversaWhatsApp({
+    required String telefone,
+    required String mensagem,
+  }) async {
+    final uri = Uri.parse(
+      'https://api.whatsapp.com/send?phone=$telefone&text=${Uri.encodeComponent(mensagem)}',
+    );
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+
+    throw Exception(msgErroWhatsapp);
+  }
+
+  String _montarMensagemNovoPedidoFabrica({
+    required Pedido pedido,
+    required String textoItens,
+    required String cabecalhoLogistica,
+    required String detalhesPagamento,
+  }) {
+    return '*NOVO PEDIDO: ${pedido.numeroPedido}*\n\n*Cliente:* ${pedido.nomeCliente}\n*Contato:* ${pedido.telefoneCliente}\n\n$cabecalhoLogistica\n*ITENS:*\n$textoItens\n\n---------------------------\n*SUBTOTAL:* R\$ ${subtotal.toStringAsFixed(2).replaceAll('.', ',')}\n*TOTAL A PAGAR: R\$ ${valorTotal.toStringAsFixed(2).replaceAll('.', ',')}*\n---------------------------\n\n$detalhesPagamento\n\n⏳ _Tempo estimado: 40 a 60 minutos._\nPor favor, confirmem o recebimento do pedido!';
+  }
+
+  String _montarMensagemNovoPedidoCliente({
+    required Pedido pedido,
+    required String textoItens,
+    required double valorDinheiroCliente,
+    required double valorTrocoCalculado,
+  }) {
+    var mensagemCliente = 'Olá, ${pedido.nomeCliente}!\n\nSeu pedido *${pedido.numeroPedido}* foi registrado com sucesso na lanchonete.\n\n*Resumo do pedido:*\n$textoItens\n\n*Total:* R\$ ${pedido.total.toStringAsFixed(2).replaceAll('.', ',')}\n*Entrega:* ${pedido.tipoEntrega}';
+
+    if (pedido.tipoEntrega == 'ENTREGA' && pedido.enderecoCompleto != null) {
+      mensagemCliente += '\n*Endereço:* ${pedido.enderecoCompleto}';
+    }
+
+    mensagemCliente += '\n*Pagamento:* ${pedido.formaPagamento}';
+
+    if (pedido.formaPagamento == 'DINHEIRO' && valorDinheiroCliente > 0) {
+      mensagemCliente += '\n*Troco para:* R\$ ${valorDinheiroCliente.toStringAsFixed(2).replaceAll('.', ',')}';
+      mensagemCliente += '\n*Troco previsto:* R\$ ${valorTrocoCalculado.toStringAsFixed(2).replaceAll('.', ',')}';
+    }
+
+    mensagemCliente += '\n\nEstamos preparando seu pedido. Em breve enviaremos nova atualização.';
+    return mensagemCliente;
+  }
+
+  Future<ResultadoNotificacaoWhatsApp> _enviarMensagensNovoPedido({
+    required Pedido pedido,
+    required String textoItens,
+    required String cabecalhoLogistica,
+    required String detalhesPagamento,
+    required double valorDinheiroCliente,
+    required double valorTrocoCalculado,
+  }) async {
+    bool enviadoFabrica = false;
+    bool enviadoCliente = false;
+
+    final mensagemFabrica = _montarMensagemNovoPedidoFabrica(
+      pedido: pedido,
+      textoItens: textoItens,
+      cabecalhoLogistica: cabecalhoLogistica,
+      detalhesPagamento: detalhesPagamento,
+    );
+    final mensagemCliente = _montarMensagemNovoPedidoCliente(
+      pedido: pedido,
+      textoItens: textoItens,
+      valorDinheiroCliente: valorDinheiroCliente,
+      valorTrocoCalculado: valorTrocoCalculado,
+    );
+
+    try {
+      await _abrirConversaWhatsApp(
+        telefone: whatsappLanchonete,
+        mensagem: mensagemFabrica,
+      );
+      enviadoFabrica = true;
+    } catch (e) {
+      debugPrint('Falha ao abrir WhatsApp da fabrica: $e');
+    }
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    try {
+      await _abrirConversaWhatsApp(
+        telefone: _normalizarTelefoneWhatsApp(pedido.telefoneCliente),
+        mensagem: mensagemCliente,
+      );
+      enviadoCliente = true;
+    } catch (e) {
+      debugPrint('Falha ao abrir WhatsApp do cliente: $e');
+    }
+
+    return ResultadoNotificacaoWhatsApp(
+      enviadoFabrica: enviadoFabrica,
+      enviadoCliente: enviadoCliente,
+    );
+  }
   
   Future<void> _buscarCEP() async { 
     String cep = _cep.text.replaceAll(RegExp(r'[^0-9]'), ''); 
@@ -594,14 +723,43 @@ class _TelaCheckoutExpressoState extends State<TelaCheckoutExpresso> {
         detalhesPagamento += _precisaTroco ? "\n*Troco para:* R\$ ${valorDinheiroCliente.toStringAsFixed(2).replaceAll('.', ',')} *(Levar R\$ ${valorTrocoCalculado.toStringAsFixed(2).replaceAll('.', ',')} de troco)*" : "\n*Não precisa de troco.*";
       }
       
-      String mensagemBase = "*NOVO PEDIDO: $numeroPedido*\n\n*Cliente:* ${_nome.text}\n*Contato:* ${_telefone.text}\n\n$cabecalhoLogistica\n*ITENS:*\n$textoItens\n\n---------------------------\n*SUBTOTAL:* R\$ ${subtotal.toStringAsFixed(2).replaceAll('.', ',')}\n*TOTAL A PAGAR: R\$ ${valorTotal.toStringAsFixed(2).replaceAll('.', ',')}*\n---------------------------\n\n$detalhesPagamento\n\n⏳ _Tempo estimado: 40 a 60 minutos._\nPor favor, confirmem o recebimento do pedido!";
-      String msgCodificada = Uri.encodeComponent(mensagemBase); 
-      Uri urlWhatsapp = Uri.parse("https://wa.me/$whatsappLanchonete?text=$msgCodificada");
-      
-      try { 
-        await launchUrl(urlWhatsapp, mode: LaunchMode.externalApplication); 
-      } catch (e) {
-        debugPrint("WhatsApp bloqueado");
+      final pedidoCriado = listaPedidosGerais.last;
+
+      final resultadoNotificacao = await _enviarMensagensNovoPedido(
+          pedido: pedidoCriado,
+          textoItens: textoItens,
+          cabecalhoLogistica: cabecalhoLogistica,
+          detalhesPagamento: detalhesPagamento,
+          valorDinheiroCliente: valorDinheiroCliente,
+          valorTrocoCalculado: valorTrocoCalculado,
+        );
+
+      pedidoCriado.notificacaoNovoPedidoFabrica = resultadoNotificacao.enviadoFabrica;
+      pedidoCriado.notificacaoNovoPedidoCliente = resultadoNotificacao.enviadoCliente;
+
+      if (mounted) {
+        if (resultadoNotificacao.ambosEnviados) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pedido encaminhado para a fabrica e para o cliente.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else if (resultadoNotificacao.algumEnviado) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pedido aberto apenas parcialmente no WhatsApp. Use a comanda para reenviar o que faltar.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Nao foi possivel abrir as conversas do WhatsApp. Use a comanda para tentar novamente.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
       
       setState(() => carrinhoAtual.clear()); 
@@ -682,21 +840,27 @@ class _TelaCheckoutExpressoState extends State<TelaCheckoutExpresso> {
                       children: [
                         const Text("1. Como deseja receber?", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)), 
                         const SizedBox(height: 10), 
-                        Row(
-                          children: [
-                            Expanded(
-                              child: RadioListTile<String>(
-                                title: const Text("Entrega"), value: 'ENTREGA', groupValue: _tipoEntrega, 
-                                onChanged: (v) => setState(() => _tipoEntrega = v!),
+                        SizedBox(
+                          width: double.infinity,
+                          child: SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment<String>(
+                                value: 'ENTREGA',
+                                icon: Icon(Icons.moped),
+                                label: Text('Entrega'),
                               ),
-                            ),
-                            Expanded(
-                              child: RadioListTile<String>(
-                                title: const Text("Retirada na Loja"), value: 'RETIRADA', groupValue: _tipoEntrega, 
-                                onChanged: (v) => setState(() => _tipoEntrega = v!),
+                              ButtonSegment<String>(
+                                value: 'RETIRADA',
+                                icon: Icon(Icons.storefront),
+                                label: Text('Retirada na Loja'),
                               ),
-                            ),
-                          ],
+                            ],
+                            selected: {_tipoEntrega},
+                            showSelectedIcon: false,
+                            onSelectionChanged: (selecionados) {
+                              setState(() => _tipoEntrega = selecionados.first);
+                            },
+                          ),
                         ), 
                         const SizedBox(height: 20),
                         
@@ -1476,20 +1640,256 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
   Color _obterCorLogistica(String status) { switch (status) { case 'NOVO': return Colors.redAccent; case 'PREPARANDO': return Colors.amber; case 'DESPACHADO': return Colors.blueAccent; case 'ENTREGUE': return Colors.green; case 'CANCELADO': return Colors.grey; default: return Colors.black; } }
   IconData _obterIconeStatus(String status) { switch (status) { case 'NOVO': return Icons.schedule; case 'PREPARANDO': return Icons.local_fire_department; case 'DESPACHADO': return Icons.local_shipping; case 'ENTREGUE': return Icons.check_circle; case 'CANCELADO': return Icons.cancel; default: return Icons.help; } }
 
-  Future<void> _enviarNotificacaoWhatsApp(Pedido pedido) async {
+  String _normalizarTelefoneWhatsApp(String telefone) {
+    var telefoneLimpo = telefone.replaceAll(RegExp(r'[^\d]'), '');
+    if (!telefoneLimpo.startsWith(whatsappPais)) {
+      telefoneLimpo = '$whatsappPais$telefoneLimpo';
+    }
+    return telefoneLimpo;
+  }
+
+  Future<void> _abrirConversaWhatsApp({
+    required String telefone,
+    required String mensagem,
+  }) async {
+    final uri = Uri.parse(
+      'https://api.whatsapp.com/send?phone=$telefone&text=${Uri.encodeComponent(mensagem)}',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+    throw Exception(msgErroWhatsapp);
+  }
+
+  String _resumirItensPedido(Pedido pedido) {
+    return pedido.itens
+        .map((item) => '${item.quantidade}x ${item.produto.nome}')
+        .join('\n');
+  }
+
+  String _montarMensagemNovoPedidoCliente(Pedido pedido) {
+    var mensagem = 'Olá ${pedido.nomeCliente}!\n\nSeu pedido ${pedido.numeroPedido} foi confirmado na lanchonete.\n\n*Itens:*\n${_resumirItensPedido(pedido)}\n\n*Total:* R\$ ${pedido.total.toStringAsFixed(2).replaceAll('.', ',')}\n*Pagamento:* ${pedido.formaPagamento}\n*Entrega:* ${pedido.tipoEntrega}';
+
+    if (pedido.tipoEntrega == 'ENTREGA' && pedido.enderecoCompleto != null) {
+      mensagem += '\n*Endereço:* ${pedido.enderecoCompleto}';
+    }
+
+    if (pedido.formaPagamento == 'DINHEIRO' && pedido.trocoPara != null) {
+      mensagem += '\n*Troco para:* R\$ ${pedido.trocoPara!.toStringAsFixed(2).replaceAll('.', ',')}';
+    }
+
+    return '$mensagem\n\nEstamos preparando seu pedido.';
+  }
+
+  String _montarMensagemNovoPedidoFabrica(Pedido pedido) {
+    final subtotalPedido = pedido.total - pedido.taxaEntrega;
+    final logistica = pedido.tipoEntrega == 'ENTREGA'
+        ? '🛵 *ENTREGA EM:*\n${pedido.enderecoCompleto ?? 'Endereço não informado'}\n*Taxa de Entrega:* R\$ ${pedido.taxaEntrega.toStringAsFixed(2).replaceAll('.', ',')}'
+        : '🛍️ *RETIRADA NO BALCÃO*';
+
+    var mensagem = '*NOVO PEDIDO: ${pedido.numeroPedido}*\n\n*Cliente:* ${pedido.nomeCliente}\n*Contato:* ${pedido.telefoneCliente}\n\n$logistica\n\n*ITENS:*\n${_resumirItensPedido(pedido)}\n\n---------------------------\n*SUBTOTAL:* R\$ ${subtotalPedido.toStringAsFixed(2).replaceAll('.', ',')}\n*TOTAL A PAGAR:* R\$ ${pedido.total.toStringAsFixed(2).replaceAll('.', ',')}\n---------------------------\n\n*Forma de Pagamento:* ${pedido.formaPagamento}';
+
+    if (pedido.formaPagamento == 'DINHEIRO' && pedido.trocoPara != null) {
+      final valorTroco = pedido.trocoPara! - pedido.total;
+      mensagem += '\n*Troco para:* R\$ ${pedido.trocoPara!.toStringAsFixed(2).replaceAll('.', ',')}';
+      mensagem += '\n*Levar de troco:* R\$ ${valorTroco.toStringAsFixed(2).replaceAll('.', ',')}';
+    }
+
+    return '$mensagem\n\nPor favor, confirmem o recebimento do pedido!';
+  }
+
+  String _montarMensagemDespachoCliente(Pedido pedido) {
+    return 'Olá ${pedido.nomeCliente}! 🚚\n\nSeu pedido ${pedido.numeroPedido} saiu para entrega!\n\n*Total:* R\$ ${pedido.total.toStringAsFixed(2).replaceAll('.', ',')}\n*Pagamento:* ${pedido.formaPagamento}\n\nAcompanhe seu pedido e esteja pronto para receber.';
+  }
+
+  String _montarMensagemDespachoFabrica(Pedido pedido) {
+    return '*ATUALIZACAO DE ENTREGA*\n\nPedido ${pedido.numeroPedido} saiu para entrega.\nCliente: ${pedido.nomeCliente}\nTelefone: ${pedido.telefoneCliente}\nTotal: R\$ ${pedido.total.toStringAsFixed(2).replaceAll('.', ',')}\n\nStatus logístico atualizado para DESPACHADO.';
+  }
+
+  Future<bool> _enviarMensagemIndividual({
+    required String telefone,
+    required String mensagem,
+  }) async {
     try {
-      String telefone = pedido.telefoneCliente.replaceAll(RegExp(r'[^\d]'), '');
-      if (!telefone.startsWith('55')) { telefone = '55$telefone'; }
-      String mensagem = 'Olá ${pedido.nomeCliente}! 🚚\n\nSeu pedido #${pedido.numeroPedido} saiu para entrega!\n\nTotal: R\$ ${pedido.total.toStringAsFixed(2).replaceAll('.', ',')}\n\nAcompanhe seu pedido e esteja pronto para receber. 😊';
-      final Uri whatsappUri = Uri.parse('https://api.whatsapp.com/send?phone=$telefone&text=${Uri.encodeComponent(mensagem)}');
-      if (await canLaunchUrl(whatsappUri)) {
-        await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
-        if(mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Notificação WhatsApp enviada para ${pedido.nomeCliente}'), backgroundColor: Colors.green)); }
-      } else {
-        if(mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('WhatsApp não disponível.'), backgroundColor: Colors.orange)); }
-      }
+      await _abrirConversaWhatsApp(telefone: telefone, mensagem: mensagem);
+      return true;
     } catch (e) {
-      if(mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red)); }
+      debugPrint('Falha ao abrir conversa do WhatsApp: $e');
+      return false;
+    }
+  }
+
+  Future<void> _reenviarResumoPedido(Pedido pedido, {required bool paraFabrica}) async {
+    final enviado = await _enviarMensagemIndividual(
+      telefone: paraFabrica ? whatsappLanchonete : _normalizarTelefoneWhatsApp(pedido.telefoneCliente),
+      mensagem: paraFabrica ? _montarMensagemNovoPedidoFabrica(pedido) : _montarMensagemNovoPedidoCliente(pedido),
+    );
+
+    if (!enviado) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Não foi possível abrir a conversa para reenvio do pedido.'), backgroundColor: Colors.red));
+      }
+      return;
+    }
+
+    setState(() {
+      if (paraFabrica) {
+        pedido.notificacaoNovoPedidoFabrica = true;
+      } else {
+        pedido.notificacaoNovoPedidoCliente = true;
+      }
+    });
+  }
+
+  Future<void> _reenviarDespachoPedido(Pedido pedido, {required bool paraFabrica}) async {
+    final enviado = await _enviarMensagemIndividual(
+      telefone: paraFabrica ? whatsappLanchonete : _normalizarTelefoneWhatsApp(pedido.telefoneCliente),
+      mensagem: paraFabrica ? _montarMensagemDespachoFabrica(pedido) : _montarMensagemDespachoCliente(pedido),
+    );
+
+    if (!enviado) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Não foi possível abrir a conversa para reenvio do despacho.'), backgroundColor: Colors.red));
+      }
+      return;
+    }
+
+    setState(() {
+      if (paraFabrica) {
+        pedido.notificacaoDespachoFabrica = true;
+      } else {
+        pedido.notificacaoDespachoCliente = true;
+      }
+    });
+  }
+
+  Widget _buildStatusNotificacao(String titulo, bool enviado) {
+    final cor = enviado ? Colors.green : Colors.orange;
+    final texto = enviado ? 'aberta' : 'pendente';
+
+    return Row(
+      children: [
+        Icon(enviado ? Icons.check_circle : Icons.pending_actions, size: 16, color: cor),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            '$titulo: $texto',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cor),
+          ),
+        ),
+      ],
+    );
+  }
+
+  int _totalNotificacoesEnviadas(Pedido pedido) {
+    var total = 0;
+    if (pedido.notificacaoNovoPedidoFabrica) total++;
+    if (pedido.notificacaoNovoPedidoCliente) total++;
+    if (pedido.notificacaoDespachoFabrica) total++;
+    if (pedido.notificacaoDespachoCliente) total++;
+    return total;
+  }
+
+  int _totalNotificacoesEsperadas(Pedido pedido) {
+    return pedido.statusLogistico == 'DESPACHADO' || pedido.statusLogistico == 'ENTREGUE'
+        ? 4
+        : 2;
+  }
+
+  Widget _buildResumoWhatsapp(Pedido pedido) {
+    final enviados = _totalNotificacoesEnviadas(pedido);
+    final esperados = _totalNotificacoesEsperadas(pedido);
+    final completo = enviados >= esperados;
+    final cor = completo
+        ? Colors.green
+        : enviados == 0
+            ? Colors.redAccent
+            : Colors.orange;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: cor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: cor.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.chat, size: 14, color: cor),
+          const SizedBox(width: 4),
+          Text(
+            'WA $enviados/$esperados',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: cor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _notificarDespachoAutomaticamente(Pedido pedido) async {
+    if (pedido.notificacaoDespachoFabrica && pedido.notificacaoDespachoCliente) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Despacho já notificado anteriormente. Use a comanda para reenviar manualmente, se necessário.'),
+            backgroundColor: Colors.blueGrey,
+          ),
+        );
+      }
+      return;
+    }
+
+    final enviarFabrica = !pedido.notificacaoDespachoFabrica;
+    final enviarCliente = !pedido.notificacaoDespachoCliente;
+
+    bool enviadoFabrica = pedido.notificacaoDespachoFabrica;
+    bool enviadoCliente = pedido.notificacaoDespachoCliente;
+
+    if (enviarFabrica) {
+      enviadoFabrica = await _enviarMensagemIndividual(
+        telefone: whatsappLanchonete,
+        mensagem: _montarMensagemDespachoFabrica(pedido),
+      );
+      pedido.notificacaoDespachoFabrica = enviadoFabrica;
+    }
+
+    if (enviarFabrica && enviarCliente) {
+      await Future.delayed(const Duration(milliseconds: 600));
+    }
+
+    if (enviarCliente) {
+      enviadoCliente = await _enviarMensagemIndividual(
+        telefone: _normalizarTelefoneWhatsApp(pedido.telefoneCliente),
+        mensagem: _montarMensagemDespachoCliente(pedido),
+      );
+      pedido.notificacaoDespachoCliente = enviadoCliente;
+    }
+
+    if (!mounted) return;
+
+    if (pedido.notificacaoDespachoFabrica && pedido.notificacaoDespachoCliente) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Despacho confirmado no WhatsApp para fábrica e cliente de ${pedido.nomeCliente}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else if (enviadoFabrica || enviadoCliente) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Despacho atualizado parcialmente. O restante pode ser reenviado pela comanda.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível abrir as notificações pendentes de despacho.'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -1498,7 +1898,7 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
     bool isCancelado = pedido.statusLogistico == 'CANCELADO';
     Color corStatus = _obterCorLogistica(pedido.statusLogistico);
     
-    showDialog(context: context, builder: (ctx) => AlertDialog(
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (dialogContext, setDialogState) => AlertDialog(
       title: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text("Comanda: ${pedido.numeroPedido}", style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -1573,16 +1973,309 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
             const SizedBox(height: 8),
             Text("Troco para: R\$ ${pedido.trocoPara!.toStringAsFixed(2).replaceAll('.', ',')} (Levar R\$ ${(pedido.trocoPara! - pedido.total).toStringAsFixed(2).replaceAll('.', ',')} de troco)", style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11))
           ]
-        ]))
+        ])),
+        const SizedBox(height: 14),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade100)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Notificações WhatsApp', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 10),
+            _buildStatusNotificacao('Novo pedido - fábrica', pedido.notificacaoNovoPedidoFabrica),
+            const SizedBox(height: 6),
+            _buildStatusNotificacao('Novo pedido - cliente', pedido.notificacaoNovoPedidoCliente),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await _reenviarResumoPedido(pedido, paraFabrica: true);
+                    setDialogState(() {});
+                  },
+                  icon: const Icon(Icons.storefront, size: 18),
+                  label: const Text('Reenviar fábrica'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await _reenviarResumoPedido(pedido, paraFabrica: false);
+                    setDialogState(() {});
+                  },
+                  icon: const Icon(Icons.person, size: 18),
+                  label: const Text('Reenviar cliente'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _buildStatusNotificacao('Despacho - fábrica', pedido.notificacaoDespachoFabrica),
+            const SizedBox(height: 6),
+            _buildStatusNotificacao('Despacho - cliente', pedido.notificacaoDespachoCliente),
+            const SizedBox(height: 10),
+            if (pedido.statusLogistico == 'DESPACHADO' || pedido.statusLogistico == 'ENTREGUE')
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await _reenviarDespachoPedido(pedido, paraFabrica: true);
+                      setDialogState(() {});
+                    },
+                    icon: const Icon(Icons.local_shipping, size: 18),
+                    label: const Text('Despacho fábrica'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await _reenviarDespachoPedido(pedido, paraFabrica: false);
+                      setDialogState(() {});
+                    },
+                    icon: const Icon(Icons.delivery_dining, size: 18),
+                    label: const Text('Despacho cliente'),
+                  ),
+                ],
+              )
+            else
+              const Text(
+                'As ações de despacho ficam disponíveis quando o pedido sair para entrega.',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+          ]),
+        )
       ]))), 
       actions: [
         TextButton.icon(icon: const Icon(Icons.print, color: Colors.grey), label: const Text("IMPRIMIR COMANDA", style: TextStyle(color: Colors.grey)), onPressed: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Enviando comando..."), backgroundColor: Colors.blueAccent)); }), 
         ElevatedButton(onPressed: () => Navigator.pop(ctx), child: const Text("FECHAR"))
-      ])); 
+      ]))); 
   }
-  Widget _abaOperacao(List<Pedido> lista) { if (lista.isEmpty) return const Center(child: Text("Nenhum pedido na operação.", style: TextStyle(fontSize: 18, color: Colors.grey))); return ListView.builder(itemCount: lista.length, itemBuilder: (context, index) { final p = lista[index]; return Card(margin: const EdgeInsets.only(bottom: 15), child: Padding(padding: const EdgeInsets.all(16.0), child: Row(children: [Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(p.numeroPedido, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), const SizedBox(height: 5), Row(children: [Icon(p.tipoEntrega == 'ENTREGA' ? Icons.moped : Icons.storefront, size: 16, color: Colors.grey), const SizedBox(width: 5), Text(p.tipoEntrega, style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold))])])), Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(p.nomeCliente, style: const TextStyle(fontWeight: FontWeight.bold)), Text("${p.itens.length} itens (R\$ ${p.total.toStringAsFixed(2).replaceAll('.', ',')})")])), Expanded(flex: 3, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10), decoration: BoxDecoration(border: Border.all(color: _obterCorLogistica(p.statusLogistico)), borderRadius: BorderRadius.circular(8)), child: DropdownButtonHideUnderline(child: DropdownButton<String>(value: p.statusLogistico, isExpanded: true, icon: Icon(Icons.arrow_drop_down, color: _obterCorLogistica(p.statusLogistico)), style: TextStyle(fontWeight: FontWeight.bold, color: _obterCorLogistica(p.statusLogistico)), items: ['NOVO', 'PREPARANDO', 'DESPACHADO', 'ENTREGUE', 'CANCELADO'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (novoStatus) async { if (novoStatus == 'CANCELADO') { bool autorizado = await _solicitarAutorizacaoGerente(); if (autorizado) { setState(() { p.statusLogistico = novoStatus!; p.statusPagamento = 'CANCELADO'; }); if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Cancelado com sucesso."), backgroundColor: Colors.red)); } } else { setState(() => p.statusLogistico = novoStatus!); if (novoStatus == 'DESPACHADO') { Future.delayed(const Duration(milliseconds: 500), () { _enviarNotificacaoWhatsApp(p); }); } } })))), const SizedBox(width: 20), IconButton(icon: const Icon(Icons.visibility, color: Colors.blue), tooltip: "Ver Comanda", onPressed: () => _verDetalhesPedido(p))]))); }); }
-  Widget _abaCaixa(List<Pedido> lista) { if (lista.isEmpty) return const Center(child: Text("Nenhum acerto pendente.", style: TextStyle(fontSize: 18, color: Colors.grey))); return ListView.builder(itemCount: lista.length, itemBuilder: (context, index) { final p = lista[index]; return Card(margin: const EdgeInsets.only(bottom: 15), child: Padding(padding: const EdgeInsets.all(16.0), child: Row(children: [Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(p.numeroPedido, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), Text(p.formaPagamento, style: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.bold))])), Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(p.nomeCliente, style: const TextStyle(fontWeight: FontWeight.bold)), Text("Total: R\$ ${p.total.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold))])), Expanded(flex: 3, child: Row(children: [Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.green), onPressed: () => setState(() => p.statusPagamento = 'PAGO'), icon: const Icon(Icons.check_circle), label: const Text("PAGO"))), const SizedBox(width: 5), IconButton(icon: const Icon(Icons.cancel, color: Colors.red), tooltip: "Cancelar Pedido Financeiro", onPressed: () async { bool autorizado = await _solicitarAutorizacaoGerente(); if (autorizado) { setState(() { p.statusLogistico = 'CANCELADO'; p.statusPagamento = 'CANCELADO'; }); } })])), const SizedBox(width: 20), IconButton(icon: const Icon(Icons.visibility, color: Colors.blue), tooltip: "Ver Comanda", onPressed: () => _verDetalhesPedido(p))]))); }); }
-  Widget _abaListagemFinal(List<Pedido> lista, {required bool isCancelado}) { if (lista.isEmpty) return Center(child: Text(isCancelado ? "Nenhum pedido cancelado." : "Nenhum pedido concluído.", style: const TextStyle(fontSize: 18, color: Colors.grey))); return ListView.builder(itemCount: lista.length, itemBuilder: (context, index) { final p = lista[index]; return Card(color: isCancelado ? Colors.red[50] : Colors.green[50], margin: const EdgeInsets.only(bottom: 15), child: ListTile(leading: Icon(isCancelado ? Icons.cancel : Icons.check_circle, color: isCancelado ? Colors.red : Colors.green, size: 30), title: Text("${p.numeroPedido} - ${p.nomeCliente}", style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("Pagamento: ${p.formaPagamento} | Total: R\$ ${p.total.toStringAsFixed(2).replaceAll('.', ',')}"), trailing: IconButton(icon: const Icon(Icons.visibility, color: Colors.blue), onPressed: () => _verDetalhesPedido(p)))); }); }
+  Widget _abaOperacao(List<Pedido> lista) {
+    if (lista.isEmpty) {
+      return const Center(
+        child: Text(
+          "Nenhum pedido na operação.",
+          style: TextStyle(fontSize: 18, color: Colors.grey),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: lista.length,
+      itemBuilder: (context, index) {
+        final p = lista[index];
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 15),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p.numeroPedido,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          Icon(
+                            p.tipoEntrega == 'ENTREGA' ? Icons.moped : Icons.storefront,
+                            size: 16,
+                            color: Colors.grey,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            p.tipoEntrega,
+                            style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _buildResumoWhatsapp(p),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(p.nomeCliente, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text('${p.itens.length} itens (R\$ ${p.total.toStringAsFixed(2).replaceAll('.', ',')})'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: _obterCorLogistica(p.statusLogistico)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: p.statusLogistico,
+                        isExpanded: true,
+                        icon: Icon(Icons.arrow_drop_down, color: _obterCorLogistica(p.statusLogistico)),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: _obterCorLogistica(p.statusLogistico),
+                        ),
+                        items: ['NOVO', 'PREPARANDO', 'DESPACHADO', 'ENTREGUE', 'CANCELADO']
+                            .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                            .toList(),
+                        onChanged: (novoStatus) async {
+                          final statusAnterior = p.statusLogistico;
+                          final messenger = ScaffoldMessenger.of(context);
+
+                          if (novoStatus == 'CANCELADO') {
+                            final autorizado = await _solicitarAutorizacaoGerente();
+                            if (!mounted) return;
+                            if (!autorizado) return;
+
+                            setState(() {
+                              p.statusLogistico = novoStatus!;
+                              p.statusPagamento = 'CANCELADO';
+                            });
+
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text("Cancelado com sucesso."),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
+
+                          if (novoStatus == null) return;
+
+                          setState(() => p.statusLogistico = novoStatus);
+
+                          if (novoStatus == 'DESPACHADO' && statusAnterior != 'DESPACHADO') {
+                            Future.delayed(const Duration(milliseconds: 500), () {
+                              _notificarDespachoAutomaticamente(p);
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                IconButton(
+                  icon: const Icon(Icons.visibility, color: Colors.blue),
+                  tooltip: "Ver Comanda",
+                  onPressed: () => _verDetalhesPedido(p),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _abaCaixa(List<Pedido> lista) {
+    if (lista.isEmpty) {
+      return const Center(
+        child: Text(
+          "Nenhum acerto pendente.",
+          style: TextStyle(fontSize: 18, color: Colors.grey),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: lista.length,
+      itemBuilder: (context, index) {
+        final p = lista[index];
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 15),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p.numeroPedido,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        p.formaPagamento,
+                        style: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildResumoWhatsapp(p),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(p.nomeCliente, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                        'Total: R\$ ${p.total.toStringAsFixed(2).replaceAll('.', ',')}',
+                        style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                          onPressed: () => setState(() => p.statusPagamento = 'PAGO'),
+                          icon: const Icon(Icons.check_circle),
+                          label: const Text("PAGO"),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      IconButton(
+                        icon: const Icon(Icons.cancel, color: Colors.red),
+                        tooltip: "Cancelar Pedido Financeiro",
+                        onPressed: () async {
+                          final autorizado = await _solicitarAutorizacaoGerente();
+                          if (!mounted) return;
+                          if (!autorizado) return;
+
+                          setState(() {
+                            p.statusLogistico = 'CANCELADO';
+                            p.statusPagamento = 'CANCELADO';
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 20),
+                IconButton(
+                  icon: const Icon(Icons.visibility, color: Colors.blue),
+                  tooltip: "Ver Comanda",
+                  onPressed: () => _verDetalhesPedido(p),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+  Widget _abaListagemFinal(List<Pedido> lista, {required bool isCancelado}) { if (lista.isEmpty) return Center(child: Text(isCancelado ? "Nenhum pedido cancelado." : "Nenhum pedido concluído.", style: const TextStyle(fontSize: 18, color: Colors.grey))); return ListView.builder(itemCount: lista.length, itemBuilder: (context, index) { final p = lista[index]; return Card(color: isCancelado ? Colors.red[50] : Colors.green[50], margin: const EdgeInsets.only(bottom: 15), child: ListTile(leading: Icon(isCancelado ? Icons.cancel : Icons.check_circle, color: isCancelado ? Colors.red : Colors.green, size: 30), title: Text("${p.numeroPedido} - ${p.nomeCliente}", style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [Text("Pagamento: ${p.formaPagamento} | Total: R\$ ${p.total.toStringAsFixed(2).replaceAll('.', ',')}"), const SizedBox(height: 6), _buildResumoWhatsapp(p)]), trailing: IconButton(icon: const Icon(Icons.visibility, color: Colors.blue), onPressed: () => _verDetalhesPedido(p)))); }); }
   @override Widget build(BuildContext context) {
     List<Pedido> opAtivas = listaPedidosGerais.where((p) => p.statusLogistico != 'ENTREGUE' && p.statusLogistico != 'CANCELADO').toList()..sort((a, b) => b.dataHora.compareTo(a.dataHora)); List<Pedido> aguardandoPagamento = listaPedidosGerais.where((p) => p.statusPagamento == 'AGUARDANDO' && p.statusLogistico != 'CANCELADO').toList()..sort((a, b) => b.dataHora.compareTo(a.dataHora)); List<Pedido> concluidos = listaPedidosGerais.where((p) => p.statusLogistico == 'ENTREGUE' && p.statusPagamento == 'PAGO').toList()..sort((a, b) => b.dataHora.compareTo(a.dataHora)); List<Pedido> cancelados = listaPedidosGerais.where((p) => p.statusLogistico == 'CANCELADO').toList()..sort((a, b) => b.dataHora.compareTo(a.dataHora));
     return DefaultTabController(length: 4, child: Padding(padding: const EdgeInsets.all(32.0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("Controle de Pedidos e Caixa", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), const SizedBox(height: 20), const TabBar(labelColor: corPrimaria, unselectedLabelColor: Colors.grey, indicatorColor: corPrimaria, isScrollable: true, tabs: [Tab(text: "1. COZINHA (Operação)"), Tab(text: "2. CAIXA (Pendentes)"), Tab(text: "3. CONCLUÍDOS (Sucesso)"), Tab(text: "4. CANCELADOS (Estornos)")]), const SizedBox(height: 20), Expanded(child: TabBarView(children: [_abaOperacao(opAtivas), _abaCaixa(aguardandoPagamento), _abaListagemFinal(concluidos, isCancelado: false), _abaListagemFinal(cancelados, isCancelado: true)]))])));
