@@ -12,12 +12,47 @@ import 'screens/teste_estoque_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  const supabaseUrl = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://tlpfusvvypkmggyxjbrw.supabase.co',
+  );
+  const supabaseAnonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue: 'sb_publishable_QIjcG1GfDqCw2PRsZhW9sQ_5YdpZUma',
+  );
+
+  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
+    runApp(const AppConfiguracaoInvalida());
+    return;
+  }
+
   await Supabase.initialize(
-    url: 'https://tlpfusvvypkmggyxjbrw.supabase.co',
-    anonKey: 'sb_publishable_QIjcG1GfDqCw2PRsZhW9sQ_5YdpZUma',
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
   );
 
   runApp(const AppLanchonete());
+}
+
+class AppConfiguracaoInvalida extends StatelessWidget {
+  const AppConfiguracaoInvalida({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Configuracao ausente. Informe SUPABASE_URL e SUPABASE_ANON_KEY via --dart-define-from-file=dart_defines.local.json para iniciar o app.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 
@@ -126,6 +161,18 @@ class Usuario {
   });
 }
 
+class RegistroDiferencaCaixa {
+  final String id;
+  final DateTime dataHora;
+  final double faturamentoSistema;
+  final double valorContado;
+  final double diferenca;
+  final String caixaId;
+  final String gerenteId;
+  final String observacao;
+  RegistroDiferencaCaixa({required this.id, required this.dataHora, required this.faturamentoSistema, required this.valorContado, required this.diferenca, required this.caixaId, required this.gerenteId, required this.observacao});
+}
+
 // --- 2. BANCOS DE DADOS TEMPORÁRIOS ---
 List<Usuario> listaUsuarios = [
   Usuario(idUsuario: "ANDRE", senha: "123", nomeCompleto: "André Administrador", cargo: "ADMIN"),
@@ -133,6 +180,7 @@ List<Usuario> listaUsuarios = [
 ];
 List<ItemCarrinho> carrinhoAtual = [];
 List<Pedido> listaPedidosGerais = []; 
+List<RegistroDiferencaCaixa> listaFechamentosDiferenca = [];
 
 // =============================================================================
 // 🍔 CARDÁPIO GIGANTE RESTAURADO (COM ESTOQUE)
@@ -1087,7 +1135,7 @@ class _TelaDashboardState extends State<TelaDashboard> {
 
   Widget _obterTelaAtual() {
     switch (_indiceMenuSelecionado) {
-      case 0: return const TelaRelatoriosFinanceiros(); // NOVO: DASHBOARD
+      case 0: return TelaRelatoriosFinanceiros(usuarioLogado: widget.usuarioLogado); // NOVO: DASHBOARD
       case 1: return const TelaGestaoPedidos(); 
       case 2: return const TelaControleEstoqueRapido(); // NOVO: ESTOQUE
       case 3: return const TelaGestaoProdutos(); 
@@ -1150,13 +1198,509 @@ class _ItemMenu extends StatelessWidget {
 // --- NOVOS MÓDULOS DE DIRETORIA ---
 // =============================================================================
 
-class TelaRelatoriosFinanceiros extends StatefulWidget { const TelaRelatoriosFinanceiros({super.key}); @override State<TelaRelatoriosFinanceiros> createState() => _TelaRelatoriosFinanceirosState(); }
-class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> {
-  void _fecharCaixa() { showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text("Fechar Caixa do Dia?"), content: const Text("Esta ação arquiva todos os pedidos Concluídos e Cancelados."), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("CANCELAR")), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.green), onPressed: () { setState(() { listaPedidosGerais.removeWhere((p) => p.statusPagamento == 'PAGO' || p.statusLogistico == 'CANCELADO'); }); Navigator.pop(ctx); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Caixa Fechado!"), backgroundColor: Colors.green)); }, child: const Text("CONFIRMAR"))])); }
-  @override Widget build(BuildContext context) {
-    List<Pedido> pagos = listaPedidosGerais.where((p) => p.statusPagamento == 'PAGO').toList(); List<Pedido> cancelados = listaPedidosGerais.where((p) => p.statusLogistico == 'CANCELADO').toList();
-    double faturamentoTotal = pagos.fold(0, (sum, item) => sum + item.total); double totalPix = pagos.where((p) => p.formaPagamento == 'PIX').fold(0, (sum, item) => sum + item.total); double totalDinheiro = pagos.where((p) => p.formaPagamento == 'DINHEIRO').fold(0, (sum, item) => sum + item.total); double totalCredito = pagos.where((p) => p.formaPagamento == 'CRÉDITO').fold(0, (sum, item) => sum + item.total); double totalDebito = pagos.where((p) => p.formaPagamento == 'DÉBITO').fold(0, (sum, item) => sum + item.total);
-    return Padding(padding: const EdgeInsets.all(32.0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Dashboard de Vendas", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.deepOrange)), ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.all(20)), onPressed: _fecharCaixa, icon: const Icon(Icons.point_of_sale, size: 28), label: const Text("FECHAR CAIXA", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)))]), const SizedBox(height: 30), Row(children: [Expanded(child: Container(padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)), child: Row(children: [CircleAvatar(radius: 30, backgroundColor: Colors.green.withValues(alpha: 0.2), child: const Icon(Icons.monetization_on, size: 30, color: Colors.green)), const SizedBox(width: 20), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("Faturamento Bruto", style: TextStyle(color: Colors.grey, fontSize: 16)), Text("R\$ ${faturamentoTotal.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold))])]))), const SizedBox(width: 20), Expanded(child: Container(padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)), child: Row(children: [CircleAvatar(radius: 30, backgroundColor: Colors.blue.withValues(alpha: 0.2), child: const Icon(Icons.check_circle, size: 30, color: Colors.blue)), const SizedBox(width: 20), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("Pedidos Sucesso", style: TextStyle(color: Colors.grey, fontSize: 16)), Text("${pagos.length}", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold))])]))), const SizedBox(width: 20), Expanded(child: Container(padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)), child: Row(children: [CircleAvatar(radius: 30, backgroundColor: Colors.red.withValues(alpha: 0.2), child: const Icon(Icons.cancel, size: 30, color: Colors.red)), const SizedBox(width: 20), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("Cancelamentos", style: TextStyle(color: Colors.grey, fontSize: 16)), Text("${cancelados.length}", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold))])]))) ]), const SizedBox(height: 30), const Text("Resumo por Forma de Pagamento", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blueGrey)), const SizedBox(height: 15), Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: const Border(bottom: BorderSide(color: Colors.teal, width: 4))), child: Column(children: [const Text("PIX", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), const SizedBox(height: 10), Text("R\$ ${totalPix.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(fontSize: 24, color: Colors.teal, fontWeight: FontWeight.bold))]))), const SizedBox(width: 15), Expanded(child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: const Border(bottom: BorderSide(color: Colors.green, width: 4))), child: Column(children: [const Text("Dinheiro", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), const SizedBox(height: 10), Text("R\$ ${totalDinheiro.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(fontSize: 24, color: Colors.green, fontWeight: FontWeight.bold))]))), const SizedBox(width: 15), Expanded(child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: const Border(bottom: BorderSide(color: Colors.orange, width: 4))), child: Column(children: [const Text("Crédito", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), const SizedBox(height: 10), Text("R\$ ${totalCredito.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(fontSize: 24, color: Colors.orange, fontWeight: FontWeight.bold))]))), const SizedBox(width: 15), Expanded(child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: const Border(bottom: BorderSide(color: Colors.blue, width: 4))), child: Column(children: [const Text("Débito", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), const SizedBox(height: 10), Text("R\$ ${totalDebito.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(fontSize: 24, color: Colors.blue, fontWeight: FontWeight.bold))])))]))]));
+class TelaRelatoriosFinanceiros extends StatefulWidget {
+  final Usuario usuarioLogado;
+  const TelaRelatoriosFinanceiros({super.key, required this.usuarioLogado});
+  @override State<TelaRelatoriosFinanceiros> createState() => _TelaRelatoriosFinanceirosState();
+}
+
+class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final _valorContadoController = TextEditingController();
+  final _observacaoController = TextEditingController();
+  bool _diferencaAutorizada = false;
+  String _gerenteAutorizouId = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _valorContadoController.dispose();
+    _observacaoController.dispose();
+    super.dispose();
+  }
+
+  void _executarFechamento(double faturamentoSistema, double valorContado, double diferenca) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Confirmar Fechamento de Caixa"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Faturamento sistema: R\$ ${faturamentoSistema.toStringAsFixed(2).replaceAll('.', ',')}"),
+            if (diferenca.abs() > 0.01) ...[
+              Text("Valor contado: R\$ ${valorContado.toStringAsFixed(2).replaceAll('.', ',')}"),
+              Text("Diferença: R\$ ${diferenca.toStringAsFixed(2).replaceAll('.', ',')}", style: TextStyle(color: diferenca < 0 ? Colors.red : Colors.orange, fontWeight: FontWeight.bold)),
+            ],
+            const SizedBox(height: 8),
+            const Text("Esta ação arquiva todos os pedidos concluídos e cancelados."),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("CANCELAR")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () {
+              if (diferenca.abs() > 0.01 && _diferencaAutorizada) {
+                listaFechamentosDiferenca.add(RegistroDiferencaCaixa(
+                  id: 'FC-${DateTime.now().millisecondsSinceEpoch}',
+                  dataHora: DateTime.now(),
+                  faturamentoSistema: faturamentoSistema,
+                  valorContado: valorContado,
+                  diferenca: diferenca,
+                  caixaId: widget.usuarioLogado.idUsuario,
+                  gerenteId: _gerenteAutorizouId,
+                  observacao: _observacaoController.text.trim(),
+                ));
+              }
+              setState(() {
+                listaPedidosGerais.removeWhere((p) => p.statusPagamento == 'PAGO' || p.statusLogistico == 'CANCELADO');
+                _valorContadoController.clear();
+                _observacaoController.clear();
+                _diferencaAutorizada = false;
+                _gerenteAutorizouId = '';
+              });
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Caixa fechado com sucesso!"), backgroundColor: Colors.green));
+            },
+            child: const Text("CONFIRMAR"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _solicitarAutorizacaoGerente(double diferenca, double faturamentoSistema, double valorContado) async {
+    final loginCtrl = TextEditingController();
+    final senhaCtrl = TextEditingController();
+    bool senhaVisivel = false;
+    final autorizado = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDs) => AlertDialog(
+          title: const Row(children: [Icon(Icons.admin_panel_settings, color: Colors.deepOrange), SizedBox(width: 8), Text("Autorização Gerencial")]),
+          content: SizedBox(
+            width: 360,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text("Diferença de caixa detectada:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+                  const SizedBox(height: 4),
+                  Text("Sistema: R\$ ${faturamentoSistema.toStringAsFixed(2).replaceAll('.', ',')}"),
+                  Text("Contado: R\$ ${valorContado.toStringAsFixed(2).replaceAll('.', ',')}"),
+                  Text("Diferença: R\$ ${diferenca.toStringAsFixed(2).replaceAll('.', ',')}", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: diferenca < 0 ? Colors.red : Colors.orange)),
+                ]),
+              ),
+              const SizedBox(height: 16),
+              const Text("Credenciais do gerente para autorização:"),
+              const SizedBox(height: 12),
+              TextField(controller: loginCtrl, inputFormatters: [UpperCaseTextFormatter()], decoration: const InputDecoration(labelText: "LOGIN GERENTE", prefixIcon: Icon(Icons.person))),
+              const SizedBox(height: 12),
+              TextField(
+                controller: senhaCtrl,
+                obscureText: !senhaVisivel,
+                decoration: InputDecoration(
+                  labelText: "SENHA",
+                  prefixIcon: const Icon(Icons.lock),
+                  suffixIcon: IconButton(icon: Icon(senhaVisivel ? Icons.visibility_off : Icons.visibility), onPressed: () => setDs(() => senhaVisivel = !senhaVisivel)),
+                ),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("CANCELAR")),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
+              icon: const Icon(Icons.verified_user),
+              label: const Text("AUTORIZAR"),
+              onPressed: () {
+                try {
+                  final gerente = listaUsuarios.firstWhere((u) => u.idUsuario == loginCtrl.text.toUpperCase() && u.senha == senhaCtrl.text && u.cargo == 'ADMIN' && u.situacaoConta);
+                  _gerenteAutorizouId = gerente.idUsuario;
+                  Navigator.pop(ctx, true);
+                } catch (_) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text("Credenciais inválidas ou usuário não é gerente."), backgroundColor: Colors.red));
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (autorizado == true) {
+      setState(() => _diferencaAutorizada = true);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Diferença autorizada por $_gerenteAutorizouId"), backgroundColor: Colors.orange));
+    }
+  }
+
+  Widget _kpiCard(String titulo, String valor, IconData icone, Color cor) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))]),
+        child: Row(children: [
+          CircleAvatar(radius: 22, backgroundColor: cor.withValues(alpha: 0.15), child: Icon(icone, color: cor, size: 20)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(titulo, style: const TextStyle(color: Colors.grey, fontSize: 11)), Text(valor, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))])),
+        ]),
+      ),
+    );
+  }
+
+  Widget _pgtoCard(String titulo, double total, int count, Color cor) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: cor.withValues(alpha: 0.35), width: 1.4)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(titulo, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          Text("R\$ ${total.toStringAsFixed(2).replaceAll('.', ',')}", style: TextStyle(fontSize: 20, color: cor, fontWeight: FontWeight.bold)),
+          Text("$count pedido${count != 1 ? 's' : ''}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _infoFechamento(String label, String valor, Color cor) {
+    return Column(children: [
+      Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      const SizedBox(height: 4),
+      Text(valor, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: cor)),
+    ]);
+  }
+
+  String _formatarDataHora(DateTime dt) => "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+
+  Widget _buildAbaRelatorioSintetico(List<Pedido> pagos, List<Pedido> cancelados) {
+    final faturamentoTotal = pagos.fold<double>(0, (s, p) => s + p.total);
+    final totalPix = pagos.where((p) => p.formaPagamento == 'PIX').fold<double>(0, (s, p) => s + p.total);
+    final totalDinheiro = pagos.where((p) => p.formaPagamento == 'DINHEIRO').fold<double>(0, (s, p) => s + p.total);
+    final totalCredito = pagos.where((p) => p.formaPagamento == 'CRÉDITO').fold<double>(0, (s, p) => s + p.total);
+    final totalDebito = pagos.where((p) => p.formaPagamento == 'DÉBITO').fold<double>(0, (s, p) => s + p.total);
+    final ticketMedio = pagos.isEmpty ? 0.0 : faturamentoTotal / pagos.length;
+    final totalEntregas = pagos.where((p) => p.tipoEntrega == 'ENTREGA').length;
+    final totalRetiradas = pagos.where((p) => p.tipoEntrega == 'RETIRADA').length;
+    final totalTaxaEntrega = pagos.where((p) => p.tipoEntrega == 'ENTREGA').fold<double>(0, (s, p) => s + p.taxaEntrega);
+    final aguardandoPgto = listaPedidosGerais.where((p) => p.statusPagamento == 'AGUARDANDO').length;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          _kpiCard("Faturamento Bruto", "R\$ ${faturamentoTotal.toStringAsFixed(2).replaceAll('.', ',')}", Icons.monetization_on, Colors.green),
+          const SizedBox(width: 12),
+          _kpiCard("Pedidos Concluídos", "${pagos.length}", Icons.check_circle, Colors.blue),
+          const SizedBox(width: 12),
+          _kpiCard("Ticket Médio", "R\$ ${ticketMedio.toStringAsFixed(2).replaceAll('.', ',')}", Icons.receipt, Colors.purple),
+          const SizedBox(width: 12),
+          _kpiCard("Cancelamentos", "${cancelados.length}", Icons.cancel, Colors.red),
+        ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          _kpiCard("Entregas", "$totalEntregas pedidos", Icons.delivery_dining, Colors.indigo),
+          const SizedBox(width: 12),
+          _kpiCard("Retiradas", "$totalRetiradas pedidos", Icons.storefront, Colors.teal),
+          const SizedBox(width: 12),
+          _kpiCard("Taxa de Entrega", "R\$ ${totalTaxaEntrega.toStringAsFixed(2).replaceAll('.', ',')}", Icons.local_shipping, Colors.brown),
+          const SizedBox(width: 12),
+          _kpiCard("Aguard. Pagamento", "$aguardandoPgto", Icons.pending, aguardandoPgto > 0 ? Colors.orange : Colors.grey),
+        ]),
+        const SizedBox(height: 24),
+        const Text("Resumo por Forma de Pagamento", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+        const SizedBox(height: 12),
+        Row(children: [
+          _pgtoCard("PIX", totalPix, pagos.where((p) => p.formaPagamento == 'PIX').length, Colors.teal),
+          const SizedBox(width: 12),
+          _pgtoCard("Dinheiro", totalDinheiro, pagos.where((p) => p.formaPagamento == 'DINHEIRO').length, Colors.green),
+          const SizedBox(width: 12),
+          _pgtoCard("Crédito", totalCredito, pagos.where((p) => p.formaPagamento == 'CRÉDITO').length, Colors.orange),
+          const SizedBox(width: 12),
+          _pgtoCard("Débito", totalDebito, pagos.where((p) => p.formaPagamento == 'DÉBITO').length, Colors.blue),
+        ]),
+        if (listaFechamentosDiferenca.isNotEmpty) ...[
+          const SizedBox(height: 28),
+          const Text("Histórico de Diferenças de Caixa", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+          const SizedBox(height: 12),
+          ...listaFechamentosDiferenca.map((r) => Card(
+            child: ListTile(
+              leading: Icon(r.diferenca < 0 ? Icons.arrow_downward : Icons.arrow_upward, color: r.diferenca < 0 ? Colors.red : Colors.orange),
+              title: Text("Fechamento em ${_formatarDataHora(r.dataHora)}"),
+              subtitle: Text("Sistema: R\$ ${r.faturamentoSistema.toStringAsFixed(2).replaceAll('.', ',')}  |  Contado: R\$ ${r.valorContado.toStringAsFixed(2).replaceAll('.', ',')}  |  Dif.: R\$ ${r.diferenca.toStringAsFixed(2).replaceAll('.', ',')}${r.observacao.isNotEmpty ? '\n"${r.observacao}"' : ''}"),
+              trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text("Aut.: ${r.gerenteId}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                Text("Op.: ${r.caixaId}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              ]),
+            ),
+          )),
+        ],
+      ]),
+    );
+  }
+
+  Widget _buildAbaRelatorioAnalitico(List<Pedido> pagos, List<Pedido> cancelados) {
+    final totalGeral = pagos.fold<double>(0, (s, p) => s + p.total);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          const Text("Relatório Analítico de Pedidos", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+            child: Text("Total: R\$ ${totalGeral.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.green)),
+          ),
+        ]),
+        const SizedBox(height: 20),
+        if (pagos.isEmpty)
+          const Padding(padding: EdgeInsets.all(40), child: Center(child: Text("Nenhum pedido concluído nesta sessão.", style: TextStyle(color: Colors.grey, fontSize: 16))))
+        else ...[
+          const Text("PEDIDOS CONCLUÍDOS (PAGOS)", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 0.5)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(color: Colors.blueGrey.shade50, borderRadius: const BorderRadius.only(topLeft: Radius.circular(6), topRight: Radius.circular(6))),
+            child: const Row(children: [
+              SizedBox(width: 110, child: Text("PEDIDO", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blueGrey))),
+              SizedBox(width: 60, child: Text("HORA", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blueGrey))),
+              Expanded(flex: 2, child: Text("CLIENTE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blueGrey))),
+              SizedBox(width: 75, child: Text("TIPO", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blueGrey))),
+              Expanded(flex: 3, child: Text("ITENS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blueGrey))),
+              SizedBox(width: 80, child: Text("PAGTO.", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blueGrey))),
+              SizedBox(width: 90, child: Text("TOTAL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blueGrey), textAlign: TextAlign.right)),
+            ]),
+          ),
+          ...pagos.asMap().entries.map((e) {
+            final p = e.value;
+            final itens = p.itens.map((it) => "${it.quantidade}x ${it.produto.nome}").join(", ");
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: e.key.isEven ? Colors.white : Colors.grey.shade50,
+                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+              ),
+              child: Row(children: [
+                SizedBox(width: 110, child: Text(p.numeroPedido, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo))),
+                SizedBox(width: 60, child: Text("${p.dataHora.hour.toString().padLeft(2, '0')}:${p.dataHora.minute.toString().padLeft(2, '0')}", style: const TextStyle(fontSize: 12))),
+                Expanded(flex: 2, child: Text(p.nomeCliente, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
+                SizedBox(width: 75, child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(color: p.tipoEntrega == 'RETIRADA' ? Colors.teal.shade50 : Colors.indigo.shade50, borderRadius: BorderRadius.circular(4)),
+                  child: Text(p.tipoEntrega == 'RETIRADA' ? 'RETIRADA' : 'ENTREGA', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: p.tipoEntrega == 'RETIRADA' ? Colors.teal : Colors.indigo), overflow: TextOverflow.ellipsis),
+                )),
+                Expanded(flex: 3, child: Text(itens, style: const TextStyle(fontSize: 11, color: Colors.black87), overflow: TextOverflow.ellipsis)),
+                SizedBox(width: 80, child: Text(p.formaPagamento, style: const TextStyle(fontSize: 11))),
+                SizedBox(width: 90, child: Text("R\$ ${p.total.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green), textAlign: TextAlign.right)),
+              ]),
+            );
+          }),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(6), bottomRight: Radius.circular(6)),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text("TOTAL — ${pagos.length} pedido${pagos.length != 1 ? 's' : ''}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 13)),
+              Text("R\$ ${totalGeral.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green)),
+            ]),
+          ),
+        ],
+        if (cancelados.isNotEmpty) ...[
+          const SizedBox(height: 28),
+          const Text("PEDIDOS CANCELADOS", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red, letterSpacing: 0.5)),
+          const SizedBox(height: 8),
+          ...cancelados.map((p) {
+            final itens = p.itens.map((it) => "${it.quantidade}x ${it.produto.nome}").join(", ");
+            return Container(
+              margin: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.red.shade100)),
+              child: Row(children: [
+                const Icon(Icons.cancel, color: Colors.red, size: 15),
+                const SizedBox(width: 8),
+                SizedBox(width: 110, child: Text(p.numeroPedido, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red))),
+                SizedBox(width: 60, child: Text("${p.dataHora.hour.toString().padLeft(2, '0')}:${p.dataHora.minute.toString().padLeft(2, '0')}", style: const TextStyle(fontSize: 12))),
+                Expanded(flex: 2, child: Text(p.nomeCliente, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
+                Expanded(flex: 4, child: Text(itens, style: const TextStyle(fontSize: 11, color: Colors.grey), overflow: TextOverflow.ellipsis)),
+              ]),
+            );
+          }),
+        ],
+      ]),
+    );
+  }
+
+  Widget _buildAbaFechamento(double faturamentoSistema) {
+    final valorContadoStr = _valorContadoController.text.trim().replaceAll(',', '.');
+    final valorContado = double.tryParse(valorContadoStr) ?? -1.0;
+    final inputValido = valorContado >= 0;
+    final diferenca = inputValido ? valorContado - faturamentoSistema : 0.0;
+    final temDiferenca = inputValido && diferenca.abs() > 0.01;
+    final podeFecchar = inputValido && (!temDiferenca || _diferencaAutorizada);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text("Fechamento de Caixa", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+        const SizedBox(height: 4),
+        const Text("Confira o caixa físico e registre qualquer diferença antes de fechar.", style: TextStyle(color: Colors.black54, fontSize: 13)),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6)]),
+          child: Row(children: [
+            const CircleAvatar(radius: 28, backgroundColor: Color(0xFFE8F5E9), child: Icon(Icons.account_balance_wallet, color: Colors.green, size: 28)),
+            const SizedBox(width: 20),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text("Faturamento pelo Sistema", style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
+              Text("R\$ ${faturamentoSistema.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.green)),
+              const Text("(total de pedidos marcados como PAGO nesta sessão)", style: TextStyle(fontSize: 11, color: Colors.grey)),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6)]),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text("Lançamento do Caixa", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _valorContadoController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (_) => setState(() { _diferencaAutorizada = false; _gerenteAutorizouId = ''; }),
+              decoration: const InputDecoration(labelText: "Valor contado no caixa (R\$)", prefixIcon: Icon(Icons.attach_money), hintText: "Ex: 176,30"),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _observacaoController,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: "Observação (opcional)", prefixIcon: Icon(Icons.notes), hintText: "Ex: troco, erro de caixa, quebrado..."),
+            ),
+          ]),
+        ),
+        if (inputValido) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: temDiferenca ? (diferenca < 0 ? Colors.red.shade50 : Colors.orange.shade50) : Colors.green.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: temDiferenca ? (diferenca < 0 ? Colors.red.shade300 : Colors.orange.shade300) : Colors.green.shade300),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(temDiferenca ? Icons.warning_amber : Icons.check_circle, color: temDiferenca ? (diferenca < 0 ? Colors.red : Colors.orange) : Colors.green, size: 22),
+                const SizedBox(width: 8),
+                Text(temDiferenca ? (diferenca < 0 ? "CAIXA COM FALTA" : "CAIXA COM SOBRA") : "CAIXA CONFERIDO — SEM DIFERENÇA",
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: temDiferenca ? (diferenca < 0 ? Colors.red : Colors.orange) : Colors.green)),
+              ]),
+              const SizedBox(height: 16),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                _infoFechamento("Sistema", "R\$ ${faturamentoSistema.toStringAsFixed(2).replaceAll('.', ',')}", Colors.blueGrey),
+                _infoFechamento("Contado", "R\$ ${valorContado.toStringAsFixed(2).replaceAll('.', ',')}", Colors.indigo),
+                _infoFechamento("Diferença", "R\$ ${diferenca.toStringAsFixed(2).replaceAll('.', ',')}", temDiferenca ? (diferenca < 0 ? Colors.red : Colors.orange) : Colors.green),
+              ]),
+              if (temDiferenca && !_diferencaAutorizada) ...[
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+                const Text("Fechamento com diferença requer autorização gerencial.", style: TextStyle(color: Colors.red, fontSize: 13)),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, padding: const EdgeInsets.all(14)),
+                    icon: const Icon(Icons.admin_panel_settings),
+                    label: const Text("SOLICITAR AUTORIZAÇÃO DO GERENTE", style: TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: () => _solicitarAutorizacaoGerente(diferenca, faturamentoSistema, valorContado),
+                  ),
+                ),
+              ],
+              if (_diferencaAutorizada) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(6)),
+                  child: Row(children: [
+                    const Icon(Icons.verified, color: Colors.green, size: 18),
+                    const SizedBox(width: 6),
+                    Text("Dif. autorizada pelo gerente: $_gerenteAutorizouId", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                  ]),
+                ),
+              ],
+            ]),
+          ),
+        ],
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: podeFecchar ? Colors.green : Colors.grey, padding: const EdgeInsets.all(18)),
+            icon: const Icon(Icons.point_of_sale, size: 26),
+            label: const Text("FECHAR CAIXA DO DIA", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            onPressed: podeFecchar ? () => _executarFechamento(faturamentoSistema, inputValido ? valorContado : faturamentoSistema, diferenca) : null,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (!inputValido)
+          const Text("Informe o valor contado para habilitar o fechamento.", style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center)
+        else if (temDiferenca && !_diferencaAutorizada)
+          const Text("Autorize a diferença com o gerente para prosseguir.", style: TextStyle(fontSize: 12, color: Colors.red), textAlign: TextAlign.center),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pagos = listaPedidosGerais.where((p) => p.statusPagamento == 'PAGO').toList();
+    final cancelados = listaPedidosGerais.where((p) => p.statusLogistico == 'CANCELADO').toList();
+    final faturamentoSistema = pagos.fold<double>(0, (s, p) => s + p.total);
+    return Column(children: [
+      Container(
+        color: Colors.white,
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            const Text("Fechamento & Relatórios", style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+            Text("Operador: ${widget.usuarioLogado.nomeCompleto}", style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          ]),
+          const SizedBox(height: 12),
+          TabBar(
+            controller: _tabController,
+            labelColor: Colors.deepOrange,
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: Colors.deepOrange,
+            tabs: const [
+              Tab(icon: Icon(Icons.bar_chart), text: "SINTÉTICO"),
+              Tab(icon: Icon(Icons.list_alt), text: "ANALÍTICO"),
+              Tab(icon: Icon(Icons.point_of_sale), text: "FECHAMENTO"),
+            ],
+          ),
+        ]),
+      ),
+      Expanded(
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildAbaRelatorioSintetico(pagos, cancelados),
+            _buildAbaRelatorioAnalitico(pagos, cancelados),
+            _buildAbaFechamento(faturamentoSistema),
+          ],
+        ),
+      ),
+    ]);
   }
 }
 
@@ -1361,7 +1905,6 @@ class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
       ),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
           border: Border(
             left: BorderSide(
               color: status == _StatusEstoque.saudavel ? Colors.transparent : borderColor,
@@ -1700,10 +2243,18 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
   }
 
   String _montarMensagemDespachoCliente(Pedido pedido) {
+    if (pedido.tipoEntrega == 'RETIRADA') {
+      return 'Olá ${pedido.nomeCliente}! 🛍️\n\nSeu pedido ${pedido.numeroPedido} está pronto para retirada na loja!\n\n*Total:* R\$ ${pedido.total.toStringAsFixed(2).replaceAll('.', ',')}\n*Pagamento:* ${pedido.formaPagamento}\n\nPode vir retirar no balcão. Estamos te aguardando!';
+    }
+
     return 'Olá ${pedido.nomeCliente}! 🚚\n\nSeu pedido ${pedido.numeroPedido} saiu para entrega!\n\n*Total:* R\$ ${pedido.total.toStringAsFixed(2).replaceAll('.', ',')}\n*Pagamento:* ${pedido.formaPagamento}\n\nAcompanhe seu pedido e esteja pronto para receber.';
   }
 
   String _montarMensagemDespachoFabrica(Pedido pedido) {
+    if (pedido.tipoEntrega == 'RETIRADA') {
+      return '*ATUALIZACAO DE RETIRADA*\n\nPedido ${pedido.numeroPedido} pronto para retirada no balcão.\nCliente: ${pedido.nomeCliente}\nTelefone: ${pedido.telefoneCliente}\nTotal: R\$ ${pedido.total.toStringAsFixed(2).replaceAll('.', ',')}\n\nStatus logístico atualizado para DESPACHADO (RETIRADA).';
+    }
+
     return '*ATUALIZACAO DE ENTREGA*\n\nPedido ${pedido.numeroPedido} saiu para entrega.\nCliente: ${pedido.nomeCliente}\nTelefone: ${pedido.telefoneCliente}\nTotal: R\$ ${pedido.total.toStringAsFixed(2).replaceAll('.', ',')}\n\nStatus logístico atualizado para DESPACHADO.';
   }
 
@@ -2009,9 +2560,9 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
               ],
             ),
             const SizedBox(height: 12),
-            _buildStatusNotificacao('Despacho - fábrica', pedido.notificacaoDespachoFabrica),
+            _buildStatusNotificacao(pedido.tipoEntrega == 'RETIRADA' ? 'Retirada - fábrica' : 'Despacho - fábrica', pedido.notificacaoDespachoFabrica),
             const SizedBox(height: 6),
-            _buildStatusNotificacao('Despacho - cliente', pedido.notificacaoDespachoCliente),
+            _buildStatusNotificacao(pedido.tipoEntrega == 'RETIRADA' ? 'Retirada - cliente' : 'Despacho - cliente', pedido.notificacaoDespachoCliente),
             const SizedBox(height: 10),
             if (pedido.statusLogistico == 'DESPACHADO' || pedido.statusLogistico == 'ENTREGUE')
               Wrap(
@@ -2024,22 +2575,24 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
                       setDialogState(() {});
                     },
                     icon: const Icon(Icons.local_shipping, size: 18),
-                    label: const Text('Despacho fábrica'),
+                    label: Text(pedido.tipoEntrega == 'RETIRADA' ? 'Retirada fábrica' : 'Despacho fábrica'),
                   ),
                   OutlinedButton.icon(
                     onPressed: () async {
                       await _reenviarDespachoPedido(pedido, paraFabrica: false);
                       setDialogState(() {});
                     },
-                    icon: const Icon(Icons.delivery_dining, size: 18),
-                    label: const Text('Despacho cliente'),
+                    icon: Icon(pedido.tipoEntrega == 'RETIRADA' ? Icons.storefront : Icons.delivery_dining, size: 18),
+                    label: Text(pedido.tipoEntrega == 'RETIRADA' ? 'Retirada cliente' : 'Despacho cliente'),
                   ),
                 ],
               )
             else
-              const Text(
-                'As ações de despacho ficam disponíveis quando o pedido sair para entrega.',
-                style: TextStyle(fontSize: 12, color: Colors.black54),
+              Text(
+                pedido.tipoEntrega == 'RETIRADA'
+                    ? 'As ações de retirada ficam disponíveis quando o pedido estiver pronto para retirada.'
+                    : 'As ações de despacho ficam disponíveis quando o pedido sair para entrega.',
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
               ),
           ]),
         )

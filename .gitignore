@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local runtime secrets for Flutter --dart-define-from-file
+dart_defines.local.json
