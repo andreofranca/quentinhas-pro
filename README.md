@@ -1,31 +1,17 @@
-# lanchonete_controle
+# Quentinhas Pro
+### ERP para Comida Caseira, Quentinhas e Delivery
 
-A new Flutter project.
+**Origem:** Este projeto nasce da evolução estrutural do ERP Lanchonete Pro (`prj_lanchonete`), preservando o patrimônio histórico e verticalizando-o para o domínio de Comida Caseira (ofertas do dia, porcionamento, controle rígido de concorrência e idempotência logística/financeira).
 
-## Supabase configuration
+## Visão Geral da Arquitetura
+O sistema opera através de uma **Transition Engine** centralizada em PostgreSQL (Supabase), permitindo que fluxos híbridos (WhatsApp, Web, Flutter de Balcão) entrem concorrentemente sem causar inconsistências de banco, travamento de estoque (overselling) ou duplicação de pagamentos (idempotência webhooks).
 
-This project reads Supabase credentials from compile-time defines.
+## Status de Deploy (Supabase)
+⚠️ **NENHUMA** migração do novo modelo (EOS-003) foi executada contra a base. O schema do Supabase atualmente permanece intocado (Legado).
 
-Run using:
+## Engenharia Orientada a Sistemas (EOS)
+A trilha de construção atual está pausada formalmente no checkpoint `EOS-003.2`. 
+Para detalhes arquiteturais, veja a pasta `docs/` e o documento principal `docs/PROJECT_CHECKPOINT.md`.
 
-```bash
-flutter run \
-	--dart-define=SUPABASE_URL=YOUR_SUPABASE_URL \
-	--dart-define=SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
-```
-
-If these values are missing, the app will stop at startup with a configuration error.
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Próxima Etapa de Retomada
+Para retomar a construção, a missão mandatória é a **EOS-003.3 — Code Review dos SQLs**.
