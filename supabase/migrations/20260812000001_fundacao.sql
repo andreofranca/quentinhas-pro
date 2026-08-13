@@ -30,7 +30,7 @@ CREATE TABLE regras_porcionamento (
 CREATE TABLE cardapios (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     data_referencia DATE NOT NULL UNIQUE,
-    status TEXT NOT NULL DEFAULT 'ABERTO'
+    status TEXT NOT NULL DEFAULT 'ABERTO' CHECK (status IN ('ABERTO', 'FECHADO', 'CANCELADO'))
 );
 
 CREATE TABLE ofertas (
@@ -38,8 +38,8 @@ CREATE TABLE ofertas (
     cardapio_id UUID REFERENCES cardapios(id) ON DELETE CASCADE,
     produto_id UUID REFERENCES produtos(id) ON DELETE RESTRICT,
     tamanho TEXT NOT NULL CHECK (tamanho IN ('PEQUENA', 'MEDIA', 'GRANDE')),
-    preco_vigente DECIMAL(10,2) NOT NULL,
-    limite_producao INT,
-    reservado_atual INT NOT NULL DEFAULT 0,
+    preco_vigente DECIMAL(10,2) NOT NULL CHECK (preco_vigente >= 0),
+    limite_producao INT CHECK (limite_producao >= 0),
+    reservado_atual INT NOT NULL DEFAULT 0 CHECK (reservado_atual >= 0),
     UNIQUE(cardapio_id, produto_id, tamanho)
 );
