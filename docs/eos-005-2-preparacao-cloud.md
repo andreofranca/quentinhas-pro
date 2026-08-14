@@ -15,7 +15,7 @@ Após a massiva execução de testes locais (EOS-005.1), confirmamos a simetria 
 3. O uso explícito de `provedor_evento` e `external_event_id` (vindos do WhatsApp) tem constraint `UNIQUE` direto na tabela de `pedidos`, eliminando na raiz o risco de duplicação assíncrona.
 
 ## 4. Inventário de Deploy (O que vai para o Cloud)
-O commit que encerrará a trilha estrutural da **Transition Engine** enviará os seguintes componentes vitais, prontos para a EOS-005.3:
+O commit que encerrou a trilha estrutural da **Transition Engine** (`628d81f896e39369ce35ad7ae30909ea75f05e02`) enviou os seguintes componentes vitais, prontos para a EOS-005.3:
 
 ### Migrations Supabase
 1. `20260812000001_fundacao.sql` - Tabelas de ofertas, cardápios e regras de porcionamento.
