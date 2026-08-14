@@ -7,6 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'constants.dart';
 import 'formatters.dart'; 
 import 'screens/teste_estoque_screen.dart';
+import 'theme/app_theme.dart';
+import 'screens/dashboard/tela_dashboard_quentinhas.dart';
 
 
 Future<void> main() async {
@@ -209,16 +211,9 @@ class AppLanchonete extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false, 
-      title: 'Lanchonete Pro',
-      theme: ThemeData(
-        useMaterial3: true, 
-        primaryColor: corPrimaria, 
-        scaffoldBackgroundColor: corFundoEsmaecido,
-        appBarTheme: const AppBarTheme(backgroundColor: corPrimaria, foregroundColor: Colors.white),
-        elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(backgroundColor: corPrimaria, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15))),
-        inputDecorationTheme: const InputDecorationTheme(filled: true, fillColor: Colors.white, border: OutlineInputBorder(), floatingLabelBehavior: FloatingLabelBehavior.always),
-      ),
-      home: const PainelTesteCompleto(),
+      title: 'Quentinhas Pro',
+      theme: AppTheme.themeData,
+      home: const TelaDashboardQuentinhas(),
     );
   }
 }
