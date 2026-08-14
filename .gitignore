@@ -46,3 +46,12 @@ app.*.map.json
 
 # Local runtime secrets for Flutter --dart-define-from-file
 dart_defines.local.json
+
+# --- QUENTINHAS PRO PROTECTIONS ---
+# Laboratório local e testes temporários
+scratch/
+
+# Credentials
+.env
+.env.*
+!.env.example

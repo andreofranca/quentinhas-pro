@@ -5,8 +5,12 @@ import '../../widgets/card_oferta_quentinha.dart';
 import '../../widgets/carrinho_lateral_widget.dart';
 import '../checkout/tela_checkout_mock.dart';
 
+import '../../services/whatsapp_service.dart';
+
 class TelaDashboardQuentinhas extends StatefulWidget {
-  const TelaDashboardQuentinhas({super.key});
+  final WhatsAppService? whatsappService;
+
+  const TelaDashboardQuentinhas({super.key, this.whatsappService});
 
   @override
   State<TelaDashboardQuentinhas> createState() => _TelaDashboardQuentinhasState();
@@ -77,6 +81,7 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
         builder: (context) => TelaCheckoutMock(
           itens: _carrinho,
           total: totalAtual,
+          whatsappService: widget.whatsappService,
         ),
       ),
     );

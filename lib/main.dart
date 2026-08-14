@@ -9,7 +9,7 @@ import 'formatters.dart';
 import 'screens/teste_estoque_screen.dart';
 import 'theme/app_theme.dart';
 import 'screens/dashboard/tela_dashboard_quentinhas.dart';
-
+import 'services/whatsapp_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -205,7 +205,9 @@ List<Produto> cardapio = [
 ];
 
 class AppLanchonete extends StatelessWidget {
-  const AppLanchonete({super.key});
+  final WhatsAppService? whatsappService;
+
+  const AppLanchonete({super.key, this.whatsappService});
 
   @override
   Widget build(BuildContext context) {
@@ -213,7 +215,7 @@ class AppLanchonete extends StatelessWidget {
       debugShowCheckedModeBanner: false, 
       title: 'Quentinhas Pro',
       theme: AppTheme.themeData,
-      home: const TelaDashboardQuentinhas(),
+      home: TelaDashboardQuentinhas(whatsappService: whatsappService),
     );
   }
 }

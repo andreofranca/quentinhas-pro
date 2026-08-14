@@ -123,12 +123,29 @@ class _BotaoTamanho extends StatelessWidget {
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 4),
-          Text(
-            disponivel ? 'R\$ ${opcao.preco.toStringAsFixed(2)}' : 'Esgotado',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: disponivel ? AppTheme.textDark : AppTheme.textMuted,
+          if (!disponivel) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.errorColor.withAlpha(26),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                'ESGOTADO',
+                style: TextStyle(color: AppTheme.errorColor, fontWeight: FontWeight.bold, fontSize: 10),
+              ),
+            ),
+            const SizedBox(height: 2),
+          ],
+          Opacity(
+            opacity: disponivel ? 1.0 : 0.4,
+            child: Text(
+              'R\$ ${opcao.preco.toStringAsFixed(2).replaceAll('.', ',')}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: disponivel ? AppTheme.textDark : AppTheme.textMuted,
+              ),
             ),
           ),
         ],

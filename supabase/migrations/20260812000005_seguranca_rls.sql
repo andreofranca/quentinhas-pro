@@ -143,3 +143,109 @@ BEGIN
     RETURN TRUE;
 END;
 $$;
+
+-- 5. Master RPC: Transition Engine
+CREATE OR REPLACE FUNCTION rpc_processar_pedido(payload JSONB)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_caixa_id UUID;
+    v_cliente_id UUID;
+    v_pedido_id UUID;
+    v_item JSONB;
+    v_limite INT;
+    v_reservado INT;
+    v_qtd INT;
+    v_oferta_id UUID;
+BEGIN
+    -- 1. Validar Caixa Aberto
+    v_caixa_id := (payload->>'caixa_id')::UUID;
+    IF NOT EXISTS (SELECT 1 FROM caixas WHERE id = v_caixa_id AND status = 'ABERTO') THEN
+        RAISE EXCEPTION 'Caixa % não está aberto.', v_caixa_id;
+    END IF;
+
+    -- 2. Upsert Cliente (por telefone)
+    IF payload->'cliente' IS NOT NULL THEN
+        INSERT INTO clientes (telefone, nome)
+        VALUES (payload->'cliente'->>'telefone', payload->'cliente'->>'nome')
+        ON CONFLICT (telefone) DO UPDATE SET nome = EXCLUDED.nome
+        RETURNING id INTO v_cliente_id;
+    END IF;
+
+    -- 3. Pessimistic Lock & Baixa de Estoque nas Ofertas
+    -- Ordenar por UUID previne Deadlocks em transações concorrentes
+    FOR v_item IN SELECT * FROM jsonb_array_elements(payload->'itens') ORDER BY (value->>'oferta_id')::UUID
+    LOOP
+        v_oferta_id := (v_item->>'oferta_id')::UUID;
+        v_qtd := (v_item->>'quantidade')::INT;
+
+        IF v_qtd <= 0 THEN
+            RAISE EXCEPTION 'Quantidade inválida para oferta %', v_oferta_id;
+        END IF;
+
+        -- Row-Level Lock
+        SELECT limite_producao, reservado_atual 
+        INTO v_limite, v_reservado 
+        FROM ofertas 
+        WHERE id = v_oferta_id 
+        FOR UPDATE;
+
+        IF v_limite IS NOT NULL AND (v_reservado + v_qtd > v_limite) THEN
+            RAISE EXCEPTION 'Estoque esgotado para a oferta %', v_oferta_id;
+        END IF;
+
+        UPDATE ofertas 
+        SET reservado_atual = reservado_atual + v_qtd 
+        WHERE id = v_oferta_id;
+    END LOOP;
+
+    -- 4. Criar Pedido
+    INSERT INTO pedidos (
+        caixa_id, cliente_id, total, modalidade, taxa_entrega, endereco_entrega, 
+        observacoes, provedor_evento, external_event_id, status_operacional
+    ) VALUES (
+        v_caixa_id, 
+        v_cliente_id, 
+        (payload->>'total')::DECIMAL, 
+        payload->>'modalidade', 
+        COALESCE((payload->>'taxa_entrega')::DECIMAL, 0.00), 
+        payload->>'endereco_entrega', 
+        payload->>'observacoes', 
+        payload->>'provedor_evento', 
+        payload->>'external_event_id',
+        'CONFIRMADO' -- Estado inicial do Transition Engine
+    ) RETURNING id INTO v_pedido_id;
+
+    -- 5. Criar Itens do Pedido
+    FOR v_item IN SELECT * FROM jsonb_array_elements(payload->'itens')
+    LOOP
+        INSERT INTO itens_pedido (
+            pedido_id, oferta_id, quantidade, preco_unitario, subtotal
+        ) VALUES (
+            v_pedido_id, 
+            (v_item->>'oferta_id')::UUID, 
+            (v_item->>'quantidade')::INT, 
+            (v_item->>'preco_unitario')::DECIMAL, 
+            (v_item->>'subtotal')::DECIMAL
+        );
+    END LOOP;
+
+    -- 6. Criar Pagamento
+    IF payload->'pagamento' IS NOT NULL THEN
+        INSERT INTO pagamentos (
+            pedido_id, forma_pagamento, valor, valor_recebido, troco
+        ) VALUES (
+            v_pedido_id,
+            payload->'pagamento'->>'forma_pagamento',
+            (payload->'pagamento'->>'valor')::DECIMAL,
+            (payload->'pagamento'->>'valor_recebido')::DECIMAL,
+            (payload->'pagamento'->>'troco')::DECIMAL
+        );
+    END IF;
+
+    RETURN jsonb_build_object('pedido_id', v_pedido_id, 'status', 'SUCCESS');
+END;
+$$;

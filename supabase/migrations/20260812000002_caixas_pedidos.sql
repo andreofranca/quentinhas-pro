@@ -23,7 +23,9 @@ CREATE TABLE pedidos (
     status_operacional TEXT NOT NULL DEFAULT 'RASCUNHO' CHECK (status_operacional IN ('RASCUNHO', 'CONFIRMADO', 'EM_PRODUCAO', 'PRONTO', 'SAIU_ENTREGA', 'ENTREGUE', 'CANCELADO')),
     status_financeiro TEXT NOT NULL DEFAULT 'PENDENTE' CHECK (status_financeiro IN ('PENDENTE', 'PAGO', 'ESTORNADO')),
     modalidade TEXT NOT NULL,
+    taxa_entrega DECIMAL(10,2) NOT NULL DEFAULT 0.00 CHECK (taxa_entrega >= 0),
     endereco_entrega TEXT,
+    observacoes TEXT,
     provedor_evento TEXT,       -- Ex: 'WHATSAPP'
     external_event_id TEXT,     -- Ex: 'msg_123'. NOTA: Se NULL, indica pedido interno sem evento externo (NULL não colide no UNIQUE).
     criado_em TIMESTAMPTZ DEFAULT NOW(),
