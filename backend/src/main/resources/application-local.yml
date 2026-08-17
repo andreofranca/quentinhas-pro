@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5440/quentinhas
+    username: quentinhas_app
+    password: app_password
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
