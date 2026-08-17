@@ -1,37 +1,38 @@
-# EOS-006.8 — Checkpoint da Fundação Backend e Transition Engine
+# EOS-006.8 — Checkpoint de Retomada do Backend
 
-**Status Global:** 🟢 Fundamentos Concluídos
-**Componentes Validados:** PostgreSQL 16 (Nativo) + Spring Boot 3 (Nativo)
+**Timestamp da Retomada:** 2026-08-17T15:47:00-03:00
 
-Este documento atua como checkpoint oficial após a materialização do esquema no PostgreSQL local e a validação ácida do seu motor de transição de status (Transition Engine), provando de vez a independência do ecossistema Supabase.
+Este documento atesta a verificação minuciosa do estado do projeto, garantindo que o laboratório e a fundação técnica permanecem exatamente como os deixamos no fechamento da transição para a arquitetura PostgreSQL + Spring Boot.
 
-## 1. Organização e Limpeza
-* **Laboratório:** Todos os arquivos SQL (seeds e scripts de teste de carga) foram migrados de escopo aberto e estão agora contidos com segurança em `backend/src/test/resources/lab-sql/`. Eles não correm o risco de serem engolidos pela rotina nativa do Flyway na inicialização real, sendo puramente evidências estáticas.
-* **Git e Credenciais:** Não existem vazamentos de senhas reais no Git. As propriedades de segurança apontam senhas geradas programaticamente (`inMemoryUserDetailsManager` no profile `local`).
-* **Testes Temporários:** O `BackendApplicationTests.java` original foi retornado à sua integridade estrutural (context-only validation). A prova viva de chamabilidade JDBC foi refatorada para um teste permanente: `TransitionEngineIntegrationTest.java`. Esse teste age como Guardrail Arquitetural — ele tentará invocar a RPC garantindo que, se no futuro o banco ficar dessincronizado, o CI falhe imediatamente na compilação.
+## ESTADO DO GIT
+- **Branch:** `main`
+- **Situação:** Limpo e alinhado (`working tree clean`). Nenhuma alteração pendente ou arquivos modificados inadvertidamente durante o repouso.
+- **Último Commit:** `34a68c3 feat(backend): fundação arquitetural Spring Boot, PostgreSQL nativo, e Transition Engine (EOS-006)`. A raiz do repositório está blindada.
 
-## 2. Evidências de Homologação (EOS-006.7)
-A Transition Engine provou sua robustez e blindagem nos cenários projetados:
-* **Concorrência (50 requisições × 10 estoque):** O motor de travamento (`SELECT ... FOR UPDATE`) absorveu as compras garantindo aprovação estrita dos 10 primeiros lotes, injetando 40 recusas exatas (`Exception: Estoque esgotado`). **Overselling: 0**.
-* **Idempotência:** Requisições clonadas via mensageria do WhatsApp foram rejeitadas na raiz via Unique Constraint dupla (`provedor_evento`, `external_event_id`). 
-* **Rollback:** Uma anomalia simulada no módulo de pagamentos estourou corretamente a constraint monetária (`valor > 0`), disparando um *graceful rollback* absoluto que poupou inventário, pedido e itens gerados no meio da transação.
-* **Integridade Java-JDBC:** O framework Spring Boot interpretou e transcreveu todas as anomalias nativas (`RAISE EXCEPTION` no PL/pgSQL) como `SQLException` seguras, atestando a via dupla de mão na arquitetura.
+## ESTADO DO POSTGRESQL
+- O container Docker `quentinhas_pro_pg` subiu normalmente, persistindo os dados e conectividade na porta 5440.
+- O banco *contém persistências de dados de laboratório*. Detectamos **10 pedidos** gravados, remanescentes do teste agressivo de estresse de concorrência (`test4-concurrency.sql`) executado com sucesso no Checkpoint 006.7. A base reflete a saúde transacional exata de nossa última interação.
 
-## 3. Estado Atual do Banco
-* **PostgreSQL (Local):** `quentinhas` port 5440.
-* **Camada Data:** `public` schema populado e limpo.
-* **Camada RPC:** `rpc_processar_pedido` e `rpc_reservar_oferta_atomica` estão instanciadas nativamente.
-* **Seed:** Banco está com o seed manual de laboratório inserido, pronto para ser expurgado caso precisemos de um *clean state*, ou preservado caso a construção da API queira usufruir da entidade para as primeiras requisições HTTP locais.
+## ESTADO DO SPRING BOOT
+- O arquivo `BackendApplicationTests.java` está restaurado, testando puramente o `contextLoads`.
+- O teste arquitetural permanente de acesso JDBC à Transition Engine reside isolado no `TransitionEngineIntegrationTest.java`. Nenhuma poluição experimental vazou para o setup oficial.
 
-## 4. Estado da Suíte de Código
-* `mvnw test`: 🟢 Passou (2 testes: Contexto & Integração Transition Engine).
-* `flutter test`: 🟢 Passou (Suite Dart intacta - Supabase Mock Mockito mantido).
-* `git diff --check`: 🟢 Limpo. Não existem detritos sintáticos.
+## ESTADO DO FLUTTER
+- Intocado. A raiz `quentinhas-pro` mantém o Frontend Flutter em sua versão intacta com mock da camada Supabase para a API de WhatsApp, esperando a substituição pelo modelo REST oficial.
 
-## 5. Próximos Passos (Pendências)
-A arquitetura base (Pilar de Dados) está 100% pronta. O bloqueio está cravado agora no domínio de Exposição.
-Próxima diretriz de valor: **Construir os Endpoints REST da API**.
-- Estruturação dos Data Transfer Objects (DTOs).
-- Implementação dos `@RestController` em Spring MVC.
-- Instanciação do `@Service` de vendas que delegará o Payload JSON direto para a nossa RPC JDBC blindada.
-- Acoplamento posterior entre a interface Flutter e o novo Servidor.
+## ESTADO DA TRANSITION ENGINE
+- Perfeitamente configurada no banco `quentinhas`.
+- **Aviso:** Nenhum código `V1__init_schema.sql` foi alterado.
+
+## ARTEFATOS DE LABORATÓRIO
+- Todo SQL destrutivo e experimental foi devidamente empacotado e isolado no diretório seguro de testes não-compiláveis: `backend/src/test/resources/lab-sql/`.
+- Os arquivos encontrados são: `test-seed.sql`, `test2-happy.sql`, `test3-oversell.sql`, `test4-concurrency.sql`, `test5-idempotency.sql` e `test6-rollback.sql`.
+
+## CLOUD E AMBIENTES LEGADOS
+- O ecossistema Cloud oficial (Supabase remoto) continua inalterado. 
+- O banco `lanchonete-controle` herdado está em seu repouso seguro sem qualquer acesso espúrio gerado por nós.
+
+## PENDÊNCIAS E PRÓXIMA MISSÃO RECOMENDADA
+O terreno se provou seguro e sem desvios. Para consolidar o design proposto (`Flutter → REST → Spring Boot → PostgreSQL`), a fundação da **API REST** de negócio é o passo natural.
+
+- **Próxima Missão Recomendada:** Inicialização dos Controladores e Contratos da API (`@RestController`). Sugerimos focar no **Domínio de Autenticação / Segurança** para garantir que apenas solicitações validadas pelo JWT atinjam nossa Transition Engine.
