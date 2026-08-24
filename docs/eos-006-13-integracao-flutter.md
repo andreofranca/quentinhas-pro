@@ -43,3 +43,7 @@ A substituição será feita preservando a UX e os fluxos, introduzindo comunica
 Esta etapa de planejamento encontra-se no estado **REVIEW ONLY**.
 Nenhuma linha de código fonte Flutter foi alterada ainda. Após autorização da Tríade (GO), iniciaremos a modificação controlada (Fase 1 a 4).
 
+
+
+## Checkpoints
+- **Fase 1 a 3**: `cc12bb1` - feat(flutter): integrar catalogo com API REST
