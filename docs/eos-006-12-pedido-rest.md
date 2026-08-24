@@ -97,3 +97,7 @@ O catálogo lido no Flutter é volátil. No momento do POST, a verdadeira checag
   - **Decisão**: Usaremos `ObjectMapper` do Jackson para serializar o Request DTO perfeitamente em JSON String e passar para a RPC, garantindo formatação correta do `JSONB`.
 - **Risco**: Capturar os erros textuais da RPC via Regex/String matching (`PSQLException`).
   - **Decisão**: É a abordagem mais pragmática para não alterar o banco agora. O GlobalExceptionHandler fará o parse da mensagem do Postgres para identificar "Estoque esgotado" ou "Caixa não aberto".
+
+
+## Checkpoint
+Hash do commit de implementação: 7a46e4e
