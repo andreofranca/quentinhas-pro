@@ -3,3 +3,10 @@ spring:
     active: local
   application:
     name: backend
+  mvc:
+    problemdetails:
+      enabled: true
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 86400000

@@ -1,8 +1,11 @@
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5440/quentinhas_test
-    username: test
-    password: testpassword
+    username: quentinhas_app
+    password: app_password
   jpa:
     hibernate:
       ddl-auto: none
+
+jwt:
+  secret: "testenvsecrettestenvsecrettestenvsecrettestenvsecrettestenvsecret"
