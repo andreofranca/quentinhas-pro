@@ -59,3 +59,4 @@ Aguardando aprovação ("GO") do PO/Arquiteto para iniciar a implementação té
 - **Testes:** 13/13 testes aprovados (incluindo testes de integração para JWT e `AuthIntegrationTest`).
 - **Segurança:** BCrypt ativo e rotas mapeadas corretamente com `ProblemDetail`. Nenhuma senha em texto é gravada ou trafegada nas respostas. A chave `JWT_SECRET` é carregada exclusivamente por variáveis de ambiente ou secrets temporárias em testes/local. 
 - **O que NÃO foi tocado:** Nenhum dado foi apagado da base, `V1__init_schema.sql` permaneceu intacto, e o ecossistema Flutter/Supabase remoto não foi acessado.
+- **Checkpoint Hash:** `29fdcbc` (feat(auth): implementar autenticacao JWT)
