@@ -35,3 +35,6 @@ Os testes englobam:
 ## 7. Impacto Futuro (Flutter)
 - O aplicativo consumirá `/api/catalogo` para montar a interface inicial.
 - As regras de indisponibilidade bloquearão cliques na interface, mas o backend continuará a arbitrar transações de fato no endpoint de Pedidos (usando Lock e RPC).
+
+## 8. Checkpoint
+- **Commit Hash:** `cc26bed` (feat(catalogo): implementar catalogo e ofertas REST)
