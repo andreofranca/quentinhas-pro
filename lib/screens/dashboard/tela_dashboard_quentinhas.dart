@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/catalogo_service.dart';
 import '../../models/models_quentinha.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/card_oferta_quentinha.dart';
@@ -19,6 +20,15 @@ class TelaDashboardQuentinhas extends StatefulWidget {
 class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
   // Estado Local: Carrinho
   final List<ItemCarrinhoQuentinha> _carrinho = [];
+  
+  late Future<List<OfertaQuentinha>> _futureCatalogo;
+  final CatalogoService _catalogoService = CatalogoService();
+
+  @override
+  void initState() {
+    super.initState();
+    _futureCatalogo = _catalogoService.buscarCatalogo();
+  }
 
   void _adicionarAoCarrinho(OfertaQuentinha oferta, TamanhoOpcao tamanho) {
     setState(() {
@@ -165,41 +175,59 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
                       ),
                       const SizedBox(height: 16),
                       // Grid para desktop, Lista para mobile
-                      if (isDesktopOrTablet)
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                            childAspectRatio: 1.5, // Ajuste para altura dos cards
-                          ),
-                          itemCount: mockCardapioHoje.length,
-                          itemBuilder: (context, index) {
-                            return CardOfertaQuentinha(
-                              oferta: mockCardapioHoje[index],
-                              onAdicionar: (TamanhoOpcao tamanho) =>
-                                  _adicionarAoCarrinho(mockCardapioHoje[index], tamanho),
-                            );
-                          },
-                        )
-                      else
-                        ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: mockCardapioHoje.length,
-                          itemBuilder: (context, index) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 16.0),
-                              child: CardOfertaQuentinha(
-                                oferta: mockCardapioHoje[index],
-                                onAdicionar: (TamanhoOpcao tamanho) =>
-                                    _adicionarAoCarrinho(mockCardapioHoje[index], tamanho),
+                      FutureBuilder<List<OfertaQuentinha>>(
+                        future: _futureCatalogo,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()));
+                          }
+                          if (snapshot.hasError) {
+                            return Center(child: Padding(padding: EdgeInsets.all(40), child: Text('Erro ao carregar cardápio. \n${snapshot.error}', textAlign: TextAlign.center, style: TextStyle(color: Colors.red))));
+                          }
+                          
+                          final catalogo = snapshot.data ?? [];
+                          if (catalogo.isEmpty) {
+                            return const Center(child: Padding(padding: EdgeInsets.all(40), child: Text('Nenhuma oferta disponível hoje.', style: TextStyle(color: Colors.grey))));
+                          }
+
+                          if (isDesktopOrTablet) {
+                            return GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 16,
+                                mainAxisSpacing: 16,
+                                childAspectRatio: 1.5, // Ajuste para altura dos cards
                               ),
+                              itemCount: catalogo.length,
+                              itemBuilder: (context, index) {
+                                return CardOfertaQuentinha(
+                                  oferta: catalogo[index],
+                                  onAdicionar: (TamanhoOpcao tamanho) =>
+                                      _adicionarAoCarrinho(catalogo[index], tamanho),
+                                );
+                              },
                             );
-                          },
-                        ),
+                          } else {
+                            return ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: catalogo.length,
+                              itemBuilder: (context, index) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 16.0),
+                                  child: CardOfertaQuentinha(
+                                    oferta: catalogo[index],
+                                    onAdicionar: (TamanhoOpcao tamanho) =>
+                                        _adicionarAoCarrinho(catalogo[index], tamanho),
+                                  ),
+                                );
+                              },
+                            );
+                          }
+                        },
+                      ),
                     ],
                   ),
                 ),

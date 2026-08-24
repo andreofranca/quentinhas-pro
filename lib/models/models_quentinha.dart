@@ -31,11 +31,13 @@ class TamanhoOpcao {
   final TamanhoQuentinha tamanho;
   final double preco;
   int? quantidadeDisponivel; // null indica infinito no mock
+  final String? ofertaId; // Adicionado para integração com backend
 
   TamanhoOpcao({
     required this.tamanho,
     required this.preco,
     this.quantidadeDisponivel,
+    this.ofertaId,
   });
 
   bool get disponivel => quantidadeDisponivel == null || quantidadeDisponivel! > 0;

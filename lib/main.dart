@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:lanchonete_controle/services/api_client.dart';
 import 'constants.dart';
 import 'formatters.dart'; 
 import 'screens/teste_estoque_screen.dart';
@@ -1085,17 +1086,47 @@ class TelaLogin extends StatefulWidget {
 class _TelaLoginState extends State<TelaLogin> {
   final _controleLogin = TextEditingController(); 
   final _controleSenha = TextEditingController();
+  bool _carregando = false;
   
-  void _tentarLogin() {
+  void _tentarLogin() async {
+    final email = _controleLogin.text.trim();
+    final senha = _controleSenha.text;
+
+    if (email.isEmpty || senha.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Preencha e-mail e senha."), backgroundColor: Colors.red));
+      return;
+    }
+
+    setState(() => _carregando = true);
+
     try {
-      Usuario user = listaUsuarios.firstWhere((u) => u.idUsuario == _controleLogin.text.toUpperCase() && u.senha == _controleSenha.text);
-      if (!user.situacaoConta) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Acesso Bloqueado. Conta inativada."), backgroundColor: Colors.red));
-        return;
-      }
+      final response = await ApiClient.instance.post('/api/auth/login', body: {
+        'email': email,
+        'password': senha,
+      });
+
+      await ApiClient.instance.saveToken(response['token']);
+      final userData = response['usuario'];
+
+      Usuario user = Usuario(
+        idUsuario: userData['id']?.toString() ?? '',
+        senha: '',
+        nomeCompleto: userData['nome'] ?? '',
+        cargo: userData['role'] ?? 'ATENDENTE',
+        cpf: '', telefone: '', email: userData['email'] ?? '',
+        cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '',
+        situacaoConta: true,
+      );
+
+      if (!mounted) return;
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TelaDashboard(usuarioLogado: user)));
-    } catch (e) { 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Acesso Negado. Verifique usuário e senha."), backgroundColor: Colors.red)); 
+    } catch (e) {
+      if (!mounted) return;
+      String erro = "Acesso Negado. Verifique e-mail e senha.";
+      if (e is ApiException) erro = e.message;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(erro), backgroundColor: Colors.red)); 
+    } finally {
+      if (mounted) setState(() => _carregando = false);
     }
   }
   
@@ -1110,9 +1141,9 @@ class _TelaLoginState extends State<TelaLogin> {
             mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, 
             children: [
               const Icon(Icons.admin_panel_settings, size: 80, color: corPrimaria), const SizedBox(height: 40), 
-              TextField(controller: _controleLogin, autofocus: true, inputFormatters: [UpperCaseTextFormatter()], decoration: const InputDecoration(labelText: 'USUÁRIO', prefixIcon: Icon(Icons.person))), const SizedBox(height: 20), 
+              TextField(controller: _controleLogin, autofocus: true, decoration: const InputDecoration(labelText: 'E-MAIL', prefixIcon: Icon(Icons.email))), const SizedBox(height: 20), 
               TextField(controller: _controleSenha, obscureText: true, onSubmitted: (_) => _tentarLogin(), decoration: const InputDecoration(labelText: 'SENHA', prefixIcon: Icon(Icons.lock))), const SizedBox(height: 30), 
-              SizedBox(height: 55, child: ElevatedButton(onPressed: _tentarLogin, child: const Text("ENTRAR NO ERP")))
+              SizedBox(height: 55, child: ElevatedButton(onPressed: _carregando ? null : _tentarLogin, child: _carregando ? const CircularProgressIndicator(color: Colors.white) : const Text("ENTRAR NO ERP")))
             ]
           )
         )
@@ -1172,7 +1203,7 @@ class _TelaDashboardState extends State<TelaDashboard> {
                     ],
                   ),
                 ),
-                ListTile(leading: const Icon(Icons.logout, color: Colors.redAccent), title: const Text("Sair do ERP", style: TextStyle(color: Colors.redAccent)), onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TelaLogin())))
+                ListTile(leading: const Icon(Icons.logout, color: Colors.redAccent), title: const Text("Sair do ERP", style: TextStyle(color: Colors.redAccent)), onTap: () async { await ApiClient.instance.clearToken(); if (context.mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TelaLogin())); })
               ],
             ),
           ),
