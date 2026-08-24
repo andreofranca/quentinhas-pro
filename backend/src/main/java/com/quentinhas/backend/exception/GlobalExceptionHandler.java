@@ -34,6 +34,22 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @ExceptionHandler(com.quentinhas.backend.exception.BusinessRuleException.class)
+    public ProblemDetail handleBusinessRuleException(com.quentinhas.backend.exception.BusinessRuleException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        problemDetail.setTitle("Unprocessable Entity");
+        problemDetail.setType(URI.create("https://api.quentinhas.com/errors/unprocessable-entity"));
+        return problemDetail;
+    }
+
+    @ExceptionHandler({com.quentinhas.backend.exception.IdempotencyException.class, com.quentinhas.backend.exception.StockEsgotadoException.class})
+    public ProblemDetail handleConflictException(RuntimeException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problemDetail.setTitle("Conflict");
+        problemDetail.setType(URI.create("https://api.quentinhas.com/errors/conflict"));
+        return problemDetail;
+    }
+
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleAllUncaughtException(Exception ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
