@@ -47,3 +47,4 @@ Nenhuma linha de código fonte Flutter foi alterada ainda. Após autorização d
 
 ## Checkpoints
 - **Fase 1 a 3**: `cc12bb1` - feat(flutter): integrar catalogo com API REST
+- **Fase 4**: `b5298b4` - feat(flutter): integrar checkout com pedidos REST
