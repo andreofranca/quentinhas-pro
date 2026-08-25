@@ -35,9 +35,12 @@ class AuthIntegrationTest {
     @Autowired
     private UsuarioRepository usuarioRepository;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     @BeforeEach
     void setUp() {
-        usuarioRepository.deleteAll();
+        jdbcTemplate.execute("TRUNCATE TABLE usuarios CASCADE");
     }
 
     @Test

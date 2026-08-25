@@ -40,9 +40,9 @@ class CatalogoIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.execute("DELETE FROM ofertas");
-        jdbcTemplate.execute("DELETE FROM cardapios");
-        jdbcTemplate.execute("DELETE FROM produtos");
+        jdbcTemplate.execute("TRUNCATE TABLE produtos CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE cardapios CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE ofertas CASCADE");
 
         produtoId1 = UUID.randomUUID();
         jdbcTemplate.update("INSERT INTO produtos (id, nome, descricao, categoria, preco_base) VALUES (?, ?, ?, ?, ?)",

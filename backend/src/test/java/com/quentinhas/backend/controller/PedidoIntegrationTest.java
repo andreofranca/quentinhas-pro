@@ -44,14 +44,13 @@ class PedidoIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.execute("DELETE FROM itens_pedido");
-        jdbcTemplate.execute("DELETE FROM pagamentos");
-        jdbcTemplate.execute("DELETE FROM pedidos");
-        jdbcTemplate.execute("DELETE FROM clientes");
-        jdbcTemplate.execute("DELETE FROM caixas");
-        jdbcTemplate.execute("DELETE FROM ofertas");
-        jdbcTemplate.execute("DELETE FROM cardapios");
-        jdbcTemplate.execute("DELETE FROM produtos");
+        jdbcTemplate.execute("TRUNCATE TABLE produtos CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE cardapios CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE ofertas CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE usuarios CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE caixas CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE pedidos CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE clientes CASCADE");
         jdbcTemplate.execute("DELETE FROM usuarios WHERE email = 'operador@test.com'");
 
         UUID userId = UUID.randomUUID();
