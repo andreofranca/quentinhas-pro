@@ -53,3 +53,6 @@ A tabela `caixas` define a gestao de turnos financeiros do sistema, criada no `V
 ## Checkpoint de Implementacao
 - Classes implementadas e package validado. Testes validados com sucesso com PostgreSQL online.
 
+
+## Checkpoint Hash
+- Commit: 651986b
