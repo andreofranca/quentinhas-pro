@@ -35,6 +35,23 @@ class CaixaService {
       throw Exception('Erro ao abrir caixa: ${e.message}');
     }
   }
+
+  Future<Map<String, dynamic>> fecharCaixa(double saldoInformado) async {
+    try {
+      final response = await _api.post('/api/caixas/fechar', body: {
+        'saldoInformado': saldoInformado
+      });
+      if (response != null && response is Map) {
+        return response as Map<String, dynamic>;
+      }
+      throw Exception('Falha ao fechar caixa. Resposta inesperada.');
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) {
+        throw Exception('Nenhum caixa aberto para fechar.');
+      }
+      throw Exception('Erro ao fechar caixa: ${e.message}');
+    }
+  }
 }
 
 class PedidoService {

@@ -141,4 +141,30 @@ class CaixaIntegrationTest {
                         .content(jsonPayload))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void fecharCaixaComSucesso() throws Exception {
+        jdbcTemplate.update("INSERT INTO caixas (id, operador_id, status, saldo_inicial, terminal_id) VALUES (gen_random_uuid(), ?, 'ABERTO', 100.00, 'PDV-01')", userId);
+        
+        String payload = "{ \"saldoInformado\": 150.00 }";
+        
+        mockMvc.perform(post("/api/caixas/fechar")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload)
+                .with(user(mockUser)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.saldoInicial").value(100.00))
+                .andExpect(jsonPath("$.faturamentoSistema").value(100.00))
+                .andExpect(jsonPath("$.diferenca").value(50.00));
+    }
+
+    @Test
+    void fecharCaixaNaoEncontrado() throws Exception {
+        String payload = "{ \"saldoInformado\": 100.00 }";
+        mockMvc.perform(post("/api/caixas/fechar")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload)
+                .with(user(mockUser)))
+                .andExpect(status().isNotFound());
+    }
 }

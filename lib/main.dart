@@ -34,6 +34,8 @@ Future<void> main() async {
     anonKey: supabaseAnonKey,
   );
 
+  await ApiClient.instance.init();
+
   runApp(const AppLanchonete());
 }
 

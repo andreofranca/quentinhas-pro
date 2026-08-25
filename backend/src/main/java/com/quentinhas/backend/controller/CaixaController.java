@@ -18,9 +18,11 @@ import java.time.OffsetDateTime;
 public class CaixaController {
 
     private final CaixaRepository caixaRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
-    public CaixaController(CaixaRepository caixaRepository) {
+    public CaixaController(CaixaRepository caixaRepository, org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
         this.caixaRepository = caixaRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @GetMapping("/ativo")
@@ -60,6 +62,43 @@ public class CaixaController {
                 novoCaixa.getTerminalId(),
                 novoCaixa.getAbertoEm(),
                 novoCaixa.getStatus()
+        ));
+    }
+
+    @PostMapping("/fechar")
+    public ResponseEntity<com.quentinhas.backend.dto.response.CaixaFechamentoResponse> fecharCaixa(
+            @RequestBody @jakarta.validation.Valid com.quentinhas.backend.dto.request.CaixaFecharRequest request, 
+            @AuthenticationPrincipal Usuario currentUser) {
+        
+        Caixa caixa = caixaRepository.findFirstByOperadorIdAndStatus(currentUser.getId(), "ABERTO")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nenhum caixa aberto encontrado para fechar"));
+
+        java.math.BigDecimal totalPedidos = jdbcTemplate.queryForObject(
+                "SELECT COALESCE(SUM(total), 0) FROM pedidos WHERE caixa_id = ? AND status_operacional != 'CANCELADO'",
+                java.math.BigDecimal.class,
+                caixa.getId()
+        );
+        
+        if (totalPedidos == null) {
+            totalPedidos = java.math.BigDecimal.ZERO;
+        }
+
+        java.math.BigDecimal faturamentoSistema = caixa.getSaldoInicial().add(totalPedidos);
+        java.math.BigDecimal diferenca = request.saldoInformado().subtract(faturamentoSistema);
+
+        caixa.setStatus("FECHADO");
+        caixa.setFechadoEm(OffsetDateTime.now());
+        caixa.setSaldoInformado(request.saldoInformado());
+        caixaRepository.save(caixa);
+
+        return ResponseEntity.ok(new com.quentinhas.backend.dto.response.CaixaFechamentoResponse(
+                caixa.getId(),
+                caixa.getTerminalId(),
+                caixa.getFechadoEm(),
+                caixa.getSaldoInicial(),
+                faturamentoSistema,
+                caixa.getSaldoInformado(),
+                diferenca
         ));
     }
 }

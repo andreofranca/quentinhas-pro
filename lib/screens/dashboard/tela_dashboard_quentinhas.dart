@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/catalogo_service.dart';
+import '../../services/pedido_service.dart';
 import '../../models/models_quentinha.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/card_oferta_quentinha.dart';
@@ -113,6 +114,76 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
     }
   }
 
+  Future<void> _mostrarModalFechamentoCaixa() async {
+    final saldoController = TextEditingController();
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Fechar Caixa'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Informe o saldo atual em dinheiro na gaveta:'),
+            const SizedBox(height: 10),
+            TextField(
+              controller: saldoController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Saldo Informado (R\$)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCELAR'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                final saldo = double.tryParse(saldoController.text.replaceAll(',', '.')) ?? 0.0;
+                final res = await CaixaService().fecharCaixa(saldo);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Caixa Fechado'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Faturamento do Sistema: R\$ ${res['faturamentoSistema']}'),
+                          Text('Saldo Informado: R\$ ${res['saldoInformado']}'),
+                          Text('Diferença: R\$ ${res['diferenca']}'),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('OK'),
+                        )
+                      ],
+                    )
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(e.toString().replaceAll('Exception: ', '')),
+                    backgroundColor: Colors.red.shade800,
+                  ));
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('FECHAR CAIXA', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Breakpoint simples para responsividade
@@ -122,6 +193,11 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
       appBar: AppBar(
         title: const Text('QUENTINHAS PRO', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.point_of_sale),
+            tooltip: 'Fechar Caixa',
+            onPressed: _mostrarModalFechamentoCaixa,
+          ),
           if (!isDesktopOrTablet)
             IconButton(
               icon: Badge(
@@ -301,3 +377,4 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
     );
   }
 }
+
