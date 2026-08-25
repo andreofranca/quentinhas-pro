@@ -4,6 +4,7 @@ import '../../models/models_quentinha.dart';
 import '../../theme/app_theme.dart';
 import '../../services/whatsapp_service.dart';
 import '../../services/cep_service.dart';
+import '../../services/pedido_service.dart';
 import '../../utils/whatsapp_message_builder.dart';
 
 class TelaCheckoutMock extends StatefulWidget {
@@ -24,14 +25,17 @@ class TelaCheckoutMock extends StatefulWidget {
 
 class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
   final _formKey = GlobalKey<FormState>();
-  
+
+  final CaixaService _caixaService = CaixaService();
+  final PedidoService _pedidoService = PedidoService();
+
   // Controladores do Cliente
   final _nomeController = TextEditingController();
   final _whatsappController = TextEditingController();
-  
+
   // Estado de Entrega
   TipoEntrega _tipoEntrega = TipoEntrega.retirada;
-  
+
   // Controladores de Endereço
   final _cepController = TextEditingController();
   final _logradouroController = TextEditingController();
@@ -40,7 +44,7 @@ class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
   final _complementoController = TextEditingController();
   final _cidadeController = TextEditingController();
   final _ufController = TextEditingController();
-  
+
   // Serviço de CEP
   late final CepService _cepService;
   bool _buscandoCep = false;
@@ -141,7 +145,7 @@ class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
                         ],
                       ),
                     ]),
-                    
+
                     const SizedBox(height: 24),
                     _buildSecao('TIPO DE ENTREGA', [
                       Row(
@@ -173,11 +177,11 @@ class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
                               child: TextFormField(
                                 controller: _cepController,
                                 decoration: InputDecoration(
-                                  labelText: 'CEP', 
+                                  labelText: 'CEP',
                                   border: const OutlineInputBorder(),
-                                  suffixIcon: _buscandoCep 
+                                  suffixIcon: _buscandoCep
                                     ? const SizedBox(
-                                        width: 24, height: 24, 
+                                        width: 24, height: 24,
                                         child: Padding(
                                           padding: EdgeInsets.all(12.0),
                                           child: CircularProgressIndicator(strokeWidth: 2),
@@ -249,7 +253,7 @@ class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
                 ),
               ),
             ),
-            
+
             // Painel Direito: Resumo e Pagamento
             Expanded(
               flex: 2,
@@ -358,11 +362,11 @@ class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
 
   Future<void> _finalizarDraft() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() => _enviando = true);
-    
+
     try {
-      final endereco = _tipoEntrega == TipoEntrega.entrega 
+      final endereco = _tipoEntrega == TipoEntrega.entrega
         ? EnderecoEntrega(
             cep: _cepController.text,
             logradouro: _logradouroController.text,
@@ -371,7 +375,7 @@ class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
             bairro: _bairroController.text,
             cidade: _cidadeController.text,
             uf: _ufController.text,
-          ) 
+          )
         : null;
 
       double? valorRecebido;
@@ -391,27 +395,26 @@ class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
         observacoes: _observacoesController.text,
       );
 
-      final msgOperacional = WhatsAppMessageBuilder.buildOperacional(draft);
-      final msgCliente = WhatsAppMessageBuilder.buildCliente(draft);
-      
-      // REGRA DE NEGÓCIO: BAIXA DE ESTOQUE (Mockada na UI para o EOS-004.8)
-      for (var item in draft.itens) {
-        item.tamanhoEscolhido.consumir(item.quantidade);
-      }
+      // Integracao com o backend
+      final caixaId = await _caixaService.getCaixaAtivoId();
+      final pedidoId = await _pedidoService.criarPedido(draft, caixaId);
+
+      final msgOperacional = WhatsAppMessageBuilder.buildOperacional(draft, numeroPedido: pedidoId.length >= 8 ? pedidoId.substring(0, 8) : pedidoId);
+      final msgCliente = WhatsAppMessageBuilder.buildCliente(draft, numeroPedido: pedidoId.length >= 8 ? pedidoId.substring(0, 8) : pedidoId);
 
       const whatsappCozinhaMock = '5511999999999';
 
       await widget.whatsappService.enviarMensagem(telefone: whatsappCozinhaMock, mensagem: msgOperacional);
       await Future.delayed(const Duration(milliseconds: 600));
       await widget.whatsappService.enviarMensagem(telefone: draft.cliente!.telefoneWhatsApp, mensagem: msgCliente);
-      
+
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('WhatsApp acionado com sucesso!')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pedido criado com sucesso!')));
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Não foi possível finalizar.\nVerifique os dados: ${e.toString().replaceAll('Exception: Domínio: ', '')}'),
+        content: Text('Nao foi possivel finalizar.\nErro: ${e.toString().replaceAll('Exception: ', '').replaceAll('Dominio: ', '')}'),
         backgroundColor: Colors.red.shade800,
         duration: const Duration(seconds: 4),
       ));
