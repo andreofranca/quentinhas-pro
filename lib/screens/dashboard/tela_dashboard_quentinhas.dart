@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/catalogo_service.dart';
-import '../../services/pedido_service.dart';
+import 'package:lanchonete_controle/services/pedido_service.dart';
+import 'package:lanchonete_controle/screens/gestao/tela_gestao_cardapio.dart';
 import '../../models/models_quentinha.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/card_oferta_quentinha.dart';
@@ -193,6 +194,13 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
       appBar: AppBar(
         title: const Text('QUENTINHAS PRO', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.menu_book),
+            tooltip: 'Gestão de Cardápio',
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaGestaoCardapio()));
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.point_of_sale),
             tooltip: 'Fechar Caixa',

@@ -35,6 +35,7 @@ public class CatalogoService {
                     List<Oferta> ofertasDoProduto = entry.getValue();
 
                     List<TamanhoCatalogoResponse> tamanhos = ofertasDoProduto.stream()
+                            .filter(oferta -> oferta.getAtivo() != null && oferta.getAtivo())
                             .map(oferta -> new TamanhoCatalogoResponse(
                                     oferta.getId(),
                                     mapTamanhoToSigla(oferta.getTamanho()),
@@ -51,6 +52,7 @@ public class CatalogoService {
                             tamanhos
                     );
                 })
+                .filter(produtoCatalogo -> !produtoCatalogo.tamanhos().isEmpty())
                 .collect(Collectors.toList());
 
         return new CatalogoResponse(produtosResponse);

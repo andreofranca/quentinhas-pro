@@ -30,9 +30,13 @@ public class Oferta {
     @Column(name = "reservado_atual")
     private Integer reservadoAtual;
 
+    @Column(name = "ativo")
+    private Boolean ativo = true;
+
     public Oferta() {}
 
     public boolean isDisponivel() {
+        if (ativo != null && !ativo) return false;
         if (limiteProducao == null) return true;
         return (reservadoAtual != null ? reservadoAtual : 0) < limiteProducao;
     }
@@ -44,6 +48,7 @@ public class Oferta {
     public BigDecimal getPrecoVigente() { return precoVigente; }
     public Integer getLimiteProducao() { return limiteProducao; }
     public Integer getReservadoAtual() { return reservadoAtual; }
+    public Boolean getAtivo() { return ativo; }
 
     public void setId(UUID id) { this.id = id; }
     public void setCardapio(Cardapio cardapio) { this.cardapio = cardapio; }
@@ -52,4 +57,5 @@ public class Oferta {
     public void setPrecoVigente(BigDecimal precoVigente) { this.precoVigente = precoVigente; }
     public void setLimiteProducao(Integer limiteProducao) { this.limiteProducao = limiteProducao; }
     public void setReservadoAtual(Integer reservadoAtual) { this.reservadoAtual = reservadoAtual; }
+    public void setAtivo(Boolean ativo) { this.ativo = ativo; }
 }
