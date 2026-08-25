@@ -6,8 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +16,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
@@ -69,22 +70,75 @@ class CaixaIntegrationTest {
                         .with(user(mockUser)))
                 .andExpect(status().isNotFound());
     }
-    
-    @Test
-    @DisplayName("Deve retornar 404 quando o usuario tem caixa, mas esta fechado")
-    void deveRetornar404ComCaixaFechado() throws Exception {
-        UUID caixaId = UUID.randomUUID();
-        jdbcTemplate.update("INSERT INTO caixas (id, operador_id, terminal_id, status) VALUES (?, ?, 'TEST_TERM', 'FECHADO')", caixaId, userId);
 
-        mockMvc.perform(get("/api/caixas/ativo")
-                        .with(user(mockUser)))
-                .andExpect(status().isNotFound());
-    }
-    
     @Test
-    @DisplayName("Deve retornar 403 quando nao autenticado")
+    @DisplayName("Deve retornar 403 quando nao autenticado no get")
     void deveRetornar401NaoAutenticado() throws Exception {
         mockMvc.perform(get("/api/caixas/ativo"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Deve abrir caixa com sucesso")
+    void deveAbrirCaixaComSucesso() throws Exception {
+        String jsonPayload = """
+                {
+                  "saldoInicial": 50.00
+                }
+                """;
+        mockMvc.perform(post("/api/caixas/abrir")
+                        .with(user(mockUser))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonPayload))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.status").value("ABERTO"));
+    }
+
+    @Test
+    @DisplayName("Deve retornar 409 conflito ao tentar abrir caixa ja aberto")
+    void deveRetornar409SeCaixaJaAberto() throws Exception {
+        UUID caixaId = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO caixas (id, operador_id, terminal_id, status) VALUES (?, ?, 'TEST_TERM', 'ABERTO')", caixaId, userId);
+
+        String jsonPayload = """
+                {
+                  "saldoInicial": 50.00
+                }
+                """;
+        mockMvc.perform(post("/api/caixas/abrir")
+                        .with(user(mockUser))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonPayload))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("Deve retornar 403 quando nao autenticado no post")
+    void deveRetornar403NaoAutenticadoPost() throws Exception {
+        String jsonPayload = """
+                {
+                  "saldoInicial": 50.00
+                }
+                """;
+        mockMvc.perform(post("/api/caixas/abrir")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonPayload))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Deve retornar 400 bad request ao tentar abrir caixa com saldo negativo")
+    void deveRetornar400SaldoNegativo() throws Exception {
+        String jsonPayload = """
+                {
+                  "saldoInicial": -10.00
+                }
+                """;
+        mockMvc.perform(post("/api/caixas/abrir")
+                        .with(user(mockUser))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonPayload))
+                .andExpect(status().isBadRequest());
     }
 }

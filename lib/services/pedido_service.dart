@@ -18,6 +18,23 @@ class CaixaService {
       throw Exception('Erro ao buscar caixa ativo: ${e.message}');
     }
   }
+
+  Future<String> abrirCaixa(double saldoInicial) async {
+    try {
+      final response = await _api.post('/api/caixas/abrir', body: {
+        'saldoInicial': saldoInicial
+      });
+      if (response != null && response is Map && response.containsKey('id')) {
+        return response['id'];
+      }
+      throw Exception('Falha ao abrir caixa. Resposta inesperada.');
+    } on ApiException catch (e) {
+      if (e.statusCode == 409) {
+        throw Exception('J existia um caixa aberto. Tente finalizar a venda novamente.');
+      }
+      throw Exception('Erro ao abrir caixa: ${e.message}');
+    }
+  }
 }
 
 class PedidoService {

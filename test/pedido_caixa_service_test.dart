@@ -69,7 +69,7 @@ void main() {
       final pedidoId = await pedidoService.criarPedido(draft, 'caixa-123');
       expect(pedidoId, 'pedido-999');
     });
-    
+
     test('criarPedido deve lanar exceo em caso de erro', () async {
       apiClient.httpClient = MockClient((request) async {
         return http.Response(jsonEncode({'detail': 'Estoque esgotado'}), 409);
@@ -91,6 +91,27 @@ void main() {
 
       expect(() => pedidoService.criarPedido(draft, 'caixa-123'), throwsException);
     });
+    test('abrirCaixa deve retornar ID em caso de sucesso', () async {
+      apiClient.httpClient = MockClient((request) async {
+        if (request.url.path == '/api/caixas/abrir' && request.method == 'POST') {
+          return http.Response(jsonEncode({
+            'id': 'novo-caixa-123',
+            'status': 'ABERTO'
+          }), 201);
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      final novoCaixaId = await caixaService.abrirCaixa(50.0);
+      expect(novoCaixaId, 'novo-caixa-123');
+    });
+
+    test('abrirCaixa deve lanar exceo se ja existir caixa aberto', () async {
+      apiClient.httpClient = MockClient((request) async {
+        return http.Response(jsonEncode({'detail': 'J existe um caixa aberto'}), 409);
+      });
+
+      expect(() => caixaService.abrirCaixa(50.0), throwsException);
+    });
   });
 }
-

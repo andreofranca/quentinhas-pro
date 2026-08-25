@@ -396,7 +396,21 @@ class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
       );
 
       // Integracao com o backend
-      final caixaId = await _caixaService.getCaixaAtivoId();
+      String? caixaId;
+      try {
+        caixaId = await _caixaService.getCaixaAtivoId();
+      } catch (e) {
+        if (e.toString().contains('Nenhum caixa aberto')) {
+          caixaId = await _mostrarModalAberturaCaixa();
+          if (caixaId == null) {
+            if (mounted) setState(() => _enviando = false);
+            return; // Usurio cancelou
+          }
+        } else {
+          rethrow;
+        }
+      }
+
       final pedidoId = await _pedidoService.criarPedido(draft, caixaId);
 
       final msgOperacional = WhatsAppMessageBuilder.buildOperacional(draft, numeroPedido: pedidoId.length >= 8 ? pedidoId.substring(0, 8) : pedidoId);
@@ -421,5 +435,51 @@ class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
     } finally {
       if (mounted) setState(() => _enviando = false);
     }
+  }
+
+  Future<String?> _mostrarModalAberturaCaixa() async {
+    final saldoController = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Abrir Caixa'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Nenhum caixa aberto. Informe o saldo inicial para abrir o caixa agora:'),
+            const SizedBox(height: 10),
+            TextField(
+              controller: saldoController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Saldo Inicial (R\$)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text('CANCELAR'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                final saldo = double.tryParse(saldoController.text.replaceAll(',', '.')) ?? 0.0;
+                final novoCaixaId = await _caixaService.abrirCaixa(saldo);
+                if (context.mounted) Navigator.pop(context, novoCaixaId);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(e.toString().replaceAll('Exception: ', '')),
+                    backgroundColor: Colors.red.shade800,
+                  ));
+                }
+              }
+            },
+            child: const Text('ABRIR E CONTINUAR'),
+          ),
+        ],
+      ),
+    );
   }
 }
