@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @SpringBootTest
+@org.springframework.test.context.ActiveProfiles("test")
 class TransitionEngineIntegrationTest {
 
     @Autowired
