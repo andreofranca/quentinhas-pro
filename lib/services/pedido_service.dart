@@ -64,24 +64,27 @@ class PedidoService {
         'nome': draft.cliente!.nome,
         'telefone': draft.cliente!.telefoneWhatsApp,
       },
-      'canalAtendimento': 'BALCAO',
+      'modalidade': draft.tipoEntrega == TipoEntrega.entrega ? 'ENTREGA' : 'RETIRADA',
       'taxaEntrega': draft.taxaEntrega,
-      'tipoEntrega': draft.tipoEntrega == TipoEntrega.entrega ? 'ENTREGA' : 'RETIRADA',
       'enderecoEntrega': draft.endereco != null ? '${draft.endereco!.logradouro}, ${draft.endereco!.numero} - ${draft.endereco!.bairro}' : '',
+      'observacoes': draft.observacoes,
       'total': draft.total,
-      'observacao': draft.observacoes,
       'itens': draft.itens.map((item) {
         return {
           'ofertaId': item.tamanhoEscolhido.ofertaId,
           'quantidade': item.quantidade,
           'precoUnitario': item.tamanhoEscolhido.preco,
-          'tamanho': item.tamanhoEscolhido.tamanho.sigla,
+          'subtotal': (item.quantidade * item.tamanhoEscolhido.preco),
         };
       }).toList(),
       'pagamento': {
-        'metodo': draft.formaPagamento.name.toUpperCase(),
+        'formaPagamento': draft.formaPagamento.name.toUpperCase(),
+        'valor': draft.total,
         'valorRecebido': draft.valorRecebido ?? draft.total,
-      }
+        'troco': ((draft.valorRecebido ?? draft.total) - draft.total) > 0 ? ((draft.valorRecebido ?? draft.total) - draft.total) : 0.0,
+      },
+      'provedorEvento': 'APP',
+      'externalEventId': 'evt-${DateTime.now().millisecondsSinceEpoch}'
     };
 
     try {

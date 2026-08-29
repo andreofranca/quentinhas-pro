@@ -11,7 +11,8 @@ void main() {
       expect(request.url.path, '/api/catalogo');
       return http.Response(
         '''
-        [
+        {
+          "produtos": [
           {
             "id": "e44d3159-...",
             "nome": "Feijoada Completa",
@@ -32,7 +33,7 @@ void main() {
               }
             ]
           }
-        ]
+        ]}
         ''',
         200,
         headers: {'content-type': 'application/json; charset=utf-8'}

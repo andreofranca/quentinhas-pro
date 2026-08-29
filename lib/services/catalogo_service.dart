@@ -7,9 +7,9 @@ class CatalogoService {
   Future<List<OfertaQuentinha>> buscarCatalogo() async {
     final response = await _api.get('/api/catalogo');
     
-    if (response == null) return [];
+    if (response == null || !response.containsKey('produtos')) return [];
     
-    List<dynamic> data = response;
+    List<dynamic> data = response['produtos'] ?? [];
     
     return data.map((json) {
       List<dynamic> tamanhosJson = json['tamanhos'] ?? [];

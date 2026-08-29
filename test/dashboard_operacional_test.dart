@@ -24,7 +24,7 @@ void main() {
       if (request.url.path == '/api/catalogo') {
         return http.Response(
           '''
-          [
+          { "produtos": [
             {
               "id": "mock_feijoada",
               "nome": "Feijoada Completa",
@@ -51,7 +51,7 @@ void main() {
                 }
               ]
             }
-          ]
+          ]}
           ''',
           200,
           headers: {'content-type': 'application/json; charset=utf-8'}
