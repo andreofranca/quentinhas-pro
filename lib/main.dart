@@ -1,15 +1,12 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'services/pedido_service.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'services/dashboard_pedido_service.dart';
 import 'package:lanchonete_controle/services/api_client.dart';
 import 'constants.dart';
 import 'formatters.dart';
-import 'screens/teste_estoque_screen.dart';
 import 'theme/app_theme.dart';
 import 'screens/dashboard/tela_dashboard_quentinhas.dart';
 import 'services/whatsapp_service.dart';
@@ -204,8 +201,6 @@ List<Usuario> listaUsuarios = [
   Usuario(idUsuario: "ANDRE", senha: "123", nomeCompleto: "André Administrador", cargo: "ADMIN"),
   Usuario(idUsuario: "JOAO", senha: "123", nomeCompleto: "João Atendente", cargo: "FUNCIONARIO")
 ];
-List<ItemCarrinho> carrinhoAtual = [];
-List<Pedido> listaPedidosGerais = [];
 
 // =============================================================================
 // 🍔 CARDÁPIO GIGANTE RESTAURADO (COM ESTOQUE)
@@ -243,860 +238,9 @@ class AppLanchonete extends StatelessWidget {
   }
 }
 
-class PainelTesteCompleto extends StatefulWidget {
-  const PainelTesteCompleto({super.key});
-
-  @override
-  State<PainelTesteCompleto> createState() => _PainelTesteCompletoState();
-}
-
-class _PainelTesteCompletoState extends State<PainelTesteCompleto> {
-  int _abaAtual = 0;
-
-  late final List<Widget> _abas = const [
-    TelaCardapioCliente(),
-    TelaTesteEstoque(),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _abaAtual,
-        children: _abas,
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _abaAtual,
-        onDestinationSelected: (value) {
-          setState(() {
-            _abaAtual = value;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.storefront_outlined),
-            selectedIcon: Icon(Icons.storefront),
-            label: 'Sistema',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2),
-            label: 'Estoque',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // =============================================================================
 // --- MÓDULO DO CLIENTE ---
 // =============================================================================
-class TelaCardapioCliente extends StatefulWidget {
-  const TelaCardapioCliente({super.key});
-  @override State<TelaCardapioCliente> createState() => _TelaCardapioClienteState();
-}
-
-class _TelaCardapioClienteState extends State<TelaCardapioCliente> {
-  void _adicionarAoCarrinho(Produto p) {
-    if (p.estoqueAtual <= 0) return; // TRAVA DE ESTOQUE
-    setState(() {
-      int index = carrinhoAtual.indexWhere((item) => item.produto.idProduto == p.idProduto);
-      if (index != -1) {
-        if (carrinhoAtual[index].quantidade < p.estoqueAtual) {
-          carrinhoAtual[index].quantidade++;
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Estoque máximo atingido!"), backgroundColor: Colors.orange));
-          return;
-        }
-      } else {
-        carrinhoAtual.add(ItemCarrinho(produto: p));
-      }
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("${p.nome} adicionado!"), duration: const Duration(seconds: 1), backgroundColor: Colors.green)
-    );
-  }
-
-  Widget _buildProdutoCard(Produto p) {
-    bool esgotado = p.estoqueAtual <= 0;
-    IconData iconCategoria = _getIconeCategoria(p.categoria);
-
-    return Card(
-      elevation: 6,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // IMAGEM COM BADGES
-          Expanded(
-            flex: 3,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.network(
-                  p.imagemUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (ctx, err, stk) => Container(
-                    color: Colors.grey[300],
-                    child: const Icon(Icons.fastfood, size: 50, color: Colors.grey),
-                  ),
-                ),
-                // OVERLAY ESGOTADO
-                if (esgotado)
-                  Container(
-                    color: Colors.black54,
-                    child: const Center(
-                      child: Text(
-                        "ESGOTADO",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                // BADGES NO CANTO SUPERIOR
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(iconCategoria, size: 16, color: corPrimaria),
-                        const SizedBox(width: 6),
-                        Text(
-                          p.categoria,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: corPrimaria,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // BADGE DE ESTOQUE
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: esgotado ? Colors.red : Colors.green,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      esgotado ? "SEM ESTOQUE" : "${p.estoqueAtual} em estoque",
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // CONTEÚDO DO CARD
-          Expanded(
-            flex: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(14.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // NOME
-                  Text(
-                    p.nome,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  // DESCRIÇÃO
-                  Expanded(
-                    child: Text(
-                      p.descricao,
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 13,
-                        height: 1.4,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // PREÇO E BOTÃO
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        CurrencyHelper.formatCurrency(p.preco),
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: esgotado ? Colors.grey : Colors.green,
-                        ),
-                      ),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: esgotado ? Colors.grey : corPrimaria,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onPressed: esgotado ? null : () => _adicionarAoCarrinho(p),
-                        icon: Icon(
-                          esgotado ? Icons.block : Icons.add_shopping_cart,
-                          size: 18,
-                        ),
-                        label: Text(esgotado ? "Indisponível" : "Adicionar"),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _getIconeCategoria(String categoria) {
-    switch (categoria) {
-      case 'Lanches':
-        return Icons.fastfood;
-      case 'Bebidas':
-        return Icons.local_drink;
-      case 'Porções':
-        return Icons.set_meal;
-      case 'Sobremesas':
-        return Icons.cake;
-      default:
-        return Icons.restaurant;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    int totalItens = carrinhoAtual.fold(0, (total, item) => total + item.quantidade);
-
-    return DefaultTabController(
-      length: categoriasMenu.length,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text("Cardápio Digital", style: TextStyle(fontWeight: FontWeight.bold)),
-          centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(Icons.lock_outline),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const TelaLogin()),
-            ),
-          ),
-          bottom: TabBar(
-            isScrollable: true,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            indicatorColor: Colors.white,
-            tabs: categoriasMenu
-                .map((cat) => Tab(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(_getIconeCategoria(cat), size: 20),
-                      const SizedBox(width: 8),
-                      Text(cat, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ))
-                .toList(),
-          ),
-        ),
-        body: TabBarView(
-          children: categoriasMenu.map((categoria) {
-            List<Produto> produtosCategoria =
-                cardapio.where((p) => p.categoria == categoria).toList();
-
-            return Center(
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 1200),
-                child: GridView.builder(
-                  padding: const EdgeInsets.all(20),
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 350,
-                    childAspectRatio: 0.8,
-                    crossAxisSpacing: 20,
-                    mainAxisSpacing: 20,
-                  ),
-                  itemCount: produtosCategoria.length,
-                  itemBuilder: (context, index) {
-                    return _buildProdutoCard(produtosCategoria[index]);
-                  },
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-        floatingActionButton: totalItens > 0
-          ? FloatingActionButton.extended(
-              backgroundColor: Colors.green,
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const TelaCheckoutExpresso(),
-                ),
-              ).then((_) => setState(() {})),
-              icon: const Icon(Icons.shopping_bag, color: Colors.white),
-              label: Text(
-                "Finalizar ($totalItens)",
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            )
-          : null,
-      ),
-    );
-  }
-}
-
-class TelaCheckoutExpresso extends StatefulWidget {
-  const TelaCheckoutExpresso({super.key});
-  @override State<TelaCheckoutExpresso> createState() => _TelaCheckoutExpressoState();
-}
-
-class _TelaCheckoutExpressoState extends State<TelaCheckoutExpresso> {
-  final _chaveForm = GlobalKey<FormState>();
-  final _nome = TextEditingController();
-  final _telefone = TextEditingController();
-  final _cep = TextEditingController();
-  final _logradouro = TextEditingController();
-  final _numero = TextEditingController();
-  final _complemento = TextEditingController();
-  final _bairro = TextEditingController();
-  final _cidade = TextEditingController();
-  final _trocoPara = TextEditingController();
-
-  bool _buscandoCep = false;
-  String _tipoEntrega = 'ENTREGA';
-  String _formaPagamento = 'PIX';
-  bool _precisaTroco = false;
-
-  double get subtotal => carrinhoAtual.fold(0, (total, item) => total + (item.produto.preco * item.quantidade));
-  double get taxaAplicada => _tipoEntrega == 'ENTREGA' ? taxaEntregaFixa : 0.0;
-  double get valorTotal => subtotal + taxaAplicada;
-
-  String _normalizarTelefoneWhatsApp(String telefone) {
-    var telefoneLimpo = telefone.replaceAll(RegExp(r'[^0-9]'), '');
-    if (!telefoneLimpo.startsWith(whatsappPais)) {
-      telefoneLimpo = '$whatsappPais$telefoneLimpo';
-    }
-    return telefoneLimpo;
-  }
-
-  Future<void> _abrirConversaWhatsApp({
-    required String telefone,
-    required String mensagem,
-  }) async {
-    final uri = Uri.parse(
-      'https://api.whatsapp.com/send?phone=$telefone&text=${Uri.encodeComponent(mensagem)}',
-    );
-
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-      return;
-    }
-
-    throw Exception(msgErroWhatsapp);
-  }
-
-  String _montarMensagemNovoPedidoFabrica({
-    required Pedido pedido,
-    required String textoItens,
-    required String cabecalhoLogistica,
-    required String detalhesPagamento,
-  }) {
-    return '*NOVO PEDIDO: ${pedido.numeroPedido}*\n\n*Cliente:* ${pedido.nomeCliente}\n*Contato:* ${pedido.telefoneCliente}\n\n$cabecalhoLogistica\n*ITENS:*\n$textoItens\n\n---------------------------\n*SUBTOTAL:* R\$ ${subtotal.toStringAsFixed(2).replaceAll('.', ',')}\n*TOTAL A PAGAR: R\$ ${valorTotal.toStringAsFixed(2).replaceAll('.', ',')}*\n---------------------------\n\n$detalhesPagamento\n\n⏳ _Tempo estimado: 40 a 60 minutos._\nPor favor, confirmem o recebimento do pedido!';
-  }
-
-  String _montarMensagemNovoPedidoCliente({
-    required Pedido pedido,
-    required String textoItens,
-    required double valorDinheiroCliente,
-    required double valorTrocoCalculado,
-  }) {
-    var mensagemCliente = 'Olá, ${pedido.nomeCliente}!\n\nSeu pedido *${pedido.numeroPedido}* foi registrado com sucesso na lanchonete.\n\n*Resumo do pedido:*\n$textoItens\n\n*Total:* R\$ ${pedido.total.toStringAsFixed(2).replaceAll('.', ',')}\n*Entrega:* ${pedido.tipoEntrega}';
-
-    if (pedido.tipoEntrega == 'ENTREGA' && pedido.enderecoCompleto != null) {
-      mensagemCliente += '\n*Endereço:* ${pedido.enderecoCompleto}';
-    }
-
-    mensagemCliente += '\n*Pagamento:* ${pedido.formaPagamento}';
-
-    if (pedido.formaPagamento == 'DINHEIRO' && valorDinheiroCliente > 0) {
-      mensagemCliente += '\n*Troco para:* R\$ ${valorDinheiroCliente.toStringAsFixed(2).replaceAll('.', ',')}';
-      mensagemCliente += '\n*Troco previsto:* R\$ ${valorTrocoCalculado.toStringAsFixed(2).replaceAll('.', ',')}';
-    }
-
-    mensagemCliente += '\n\nEstamos preparando seu pedido. Em breve enviaremos nova atualização.';
-    return mensagemCliente;
-  }
-
-  Future<ResultadoNotificacaoWhatsApp> _enviarMensagensNovoPedido({
-    required Pedido pedido,
-    required String textoItens,
-    required String cabecalhoLogistica,
-    required String detalhesPagamento,
-    required double valorDinheiroCliente,
-    required double valorTrocoCalculado,
-  }) async {
-    bool enviadoFabrica = false;
-    bool enviadoCliente = false;
-
-    final mensagemFabrica = _montarMensagemNovoPedidoFabrica(
-      pedido: pedido,
-      textoItens: textoItens,
-      cabecalhoLogistica: cabecalhoLogistica,
-      detalhesPagamento: detalhesPagamento,
-    );
-    final mensagemCliente = _montarMensagemNovoPedidoCliente(
-      pedido: pedido,
-      textoItens: textoItens,
-      valorDinheiroCliente: valorDinheiroCliente,
-      valorTrocoCalculado: valorTrocoCalculado,
-    );
-
-    try {
-      await _abrirConversaWhatsApp(
-        telefone: whatsappLanchonete,
-        mensagem: mensagemFabrica,
-      );
-      enviadoFabrica = true;
-    } catch (e) {
-      debugPrint('Falha ao abrir WhatsApp da fabrica: $e');
-    }
-
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    try {
-      await _abrirConversaWhatsApp(
-        telefone: _normalizarTelefoneWhatsApp(pedido.telefoneCliente),
-        mensagem: mensagemCliente,
-      );
-      enviadoCliente = true;
-    } catch (e) {
-      debugPrint('Falha ao abrir WhatsApp do cliente: $e');
-    }
-
-    return ResultadoNotificacaoWhatsApp(
-      enviadoFabrica: enviadoFabrica,
-      enviadoCliente: enviadoCliente,
-    );
-  }
-
-  Future<void> _buscarCEP() async {
-    String cep = _cep.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (cep.length != 8) return;
-    setState(() => _buscandoCep = true);
-    try {
-      final response = await http.get(Uri.parse('https://viacep.com.br/ws/$cep/json/'));
-      if (!mounted) return;
-      if (response.statusCode == 200) {
-        var dados = jsonDecode(response.body);
-        if (dados['erro'] == null) {
-          setState(() {
-            _logradouro.text = dados['logradouro'] ?? '';
-            _bairro.text = dados['bairro'] ?? '';
-            _cidade.text = dados['localidade'] ?? '';
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint("Erro CEP: $e");
-    } finally {
-      setState(() => _buscandoCep = false);
-    }
-  }
-
-  Future<void> _finalizarPedido() async {
-    if (_chaveForm.currentState!.validate()) {
-      if (carrinhoAtual.isEmpty) return;
-
-      double valorTrocoCalculado = 0;
-      double valorDinheiroCliente = 0;
-
-      if (_formaPagamento == 'DINHEIRO' && _precisaTroco) {
-        valorDinheiroCliente = double.tryParse(_trocoPara.text.replaceAll(',', '.')) ?? 0;
-        if (valorDinheiroCliente <= valorTotal) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("O valor para troco deve ser maior que o total!"), backgroundColor: Colors.red));
-          return;
-        }
-        valorTrocoCalculado = valorDinheiroCliente - valorTotal;
-      }
-
-      // REGRA DE NEGÓCIO: BAIXA DE ESTOQUE
-      for (var item in carrinhoAtual) {
-        Produto pReal = cardapio.firstWhere((p) => p.idProduto == item.produto.idProduto);
-        pReal.estoqueAtual -= item.quantidade;
-      }
-
-      String numeroPedido = "#PED-${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}";
-      String? enderecoMontado;
-
-      if (_tipoEntrega == 'ENTREGA') {
-        enderecoMontado = "${_logradouro.text}, ${_numero.text} - ${_complemento.text.isNotEmpty ? '(${_complemento.text}) - ' : ''}${_bairro.text}, ${_cidade.text}";
-      }
-
-      listaPedidosGerais.add(Pedido(
-        numeroPedido: numeroPedido,
-        nomeCliente: _nome.text,
-        telefoneCliente: _telefone.text,
-        tipoEntrega: _tipoEntrega,
-        taxaEntrega: taxaAplicada,
-        enderecoCompleto: enderecoMontado,
-        formaPagamento: _formaPagamento,
-        trocoPara: valorDinheiroCliente > 0 ? valorDinheiroCliente : null,
-        itens: List.from(carrinhoAtual),
-        total: valorTotal,
-        dataHora: DateTime.now()
-      ));
-
-      String textoItens = carrinhoAtual.map((i) => "${i.quantidade}x ${i.produto.nome} (${CurrencyHelper.formatCurrency(i.produto.preco * i.quantidade)})" ).join('\n');
-      String cabecalhoLogistica = _tipoEntrega == 'ENTREGA' ? "🛵 *ENTREGA EM:*\n$enderecoMontado\n*Taxa de Entrega:* ${CurrencyHelper.formatCurrency(taxaAplicada)}\n" : "🛍️ *RETIRADA NO BALCÃO*\nO cliente virá buscar na loja.\n";
-      String detalhesPagamento = "*Forma de Pagamento:* $_formaPagamento";
-
-      if (_formaPagamento == 'DINHEIRO') {
-        detalhesPagamento += _precisaTroco ? "\n*Troco para:* R\$ ${valorDinheiroCliente.toStringAsFixed(2).replaceAll('.', ',')} *(Levar R\$ ${valorTrocoCalculado.toStringAsFixed(2).replaceAll('.', ',')} de troco)*" : "\n*Não precisa de troco.*";
-      }
-
-      final pedidoCriado = listaPedidosGerais.last;
-
-      final resultadoNotificacao = await _enviarMensagensNovoPedido(
-          pedido: pedidoCriado,
-          textoItens: textoItens,
-          cabecalhoLogistica: cabecalhoLogistica,
-          detalhesPagamento: detalhesPagamento,
-          valorDinheiroCliente: valorDinheiroCliente,
-          valorTrocoCalculado: valorTrocoCalculado,
-        );
-
-      pedidoCriado.notificacaoNovoPedidoFabrica = resultadoNotificacao.enviadoFabrica;
-      pedidoCriado.notificacaoNovoPedidoCliente = resultadoNotificacao.enviadoCliente;
-
-      if (mounted) {
-        if (resultadoNotificacao.ambosEnviados) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pedido encaminhado para a fabrica e para o cliente.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else if (resultadoNotificacao.algumEnviado) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pedido aberto apenas parcialmente no WhatsApp. Use a comanda para reenviar o que faltar.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Nao foi possivel abrir as conversas do WhatsApp. Use a comanda para tentar novamente.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-
-      setState(() => carrinhoAtual.clear());
-      if (mounted) {
-        Navigator.pop(context);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Finalizar Pedido")),
-      body: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // LADO ESQUERDO: RESUMO
-              Expanded(
-                flex: 1,
-                child: Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("Seu Pedido", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                      const Divider(),
-                      Expanded(
-                        child: ListView.builder(
-                          itemCount: carrinhoAtual.length,
-                          itemBuilder: (context, index) {
-                            final item = carrinhoAtual[index];
-                            return ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text("${item.quantidade}x ${item.produto.nome}"),
-                              trailing: Text(CurrencyHelper.formatCurrency(item.produto.preco * item.quantidade), style: const TextStyle(fontWeight: FontWeight.bold))
-                            );
-                          }
-                        )
-                      ),
-                      const Divider(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [const Text("Subtotal:"), Text(CurrencyHelper.formatCurrency(subtotal))]
-                      ),
-                      if (_tipoEntrega == 'ENTREGA')
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [const Text("Taxa de Entrega:", style: TextStyle(color: Colors.red)), Text("+ R\$ ${taxaAplicada.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(color: Colors.red))]
-                          )
-                        ),
-                      const Divider(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text("TOTAL:", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                          Expanded(child: FittedBox(alignment: Alignment.centerRight, fit: BoxFit.scaleDown, child: Text(CurrencyHelper.formatCurrency(valorTotal), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green))))
-                        ]
-                      )
-                    ]
-                  )
-                )
-              ),
-              // LADO DIREITO: FORMULÁRIO
-              Expanded(
-                flex: 2,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(32),
-                  child: Form(
-                    key: _chaveForm,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("1. Como deseja receber?", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          child: SegmentedButton<String>(
-                            segments: const [
-                              ButtonSegment<String>(
-                                value: 'ENTREGA',
-                                icon: Icon(Icons.moped),
-                                label: Text('Entrega'),
-                              ),
-                              ButtonSegment<String>(
-                                value: 'RETIRADA',
-                                icon: Icon(Icons.storefront),
-                                label: Text('Retirada na Loja'),
-                              ),
-                            ],
-                            selected: {_tipoEntrega},
-                            showSelectedIcon: false,
-                            onSelectionChanged: (selecionados) {
-                              setState(() => _tipoEntrega = selecionados.first);
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-
-                        const Text("2. Seus Dados", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                        const SizedBox(height: 15),
-                        Row(
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: TextFormField(
-                                controller: _nome, textInputAction: TextInputAction.next, inputFormatters: [PrimeiraLetraMaiusculaFormatter()],
-                                decoration: const InputDecoration(labelText: 'Como quer ser chamado? *', hintText: 'Seu Nome'),
-                                validator: (v) => v!.isEmpty ? 'Obrigatório' : null
-                              )
-                            ),
-                            const SizedBox(width: 15),
-                            Expanded(
-                              child: TextFormField(
-                                controller: _telefone, keyboardType: TextInputType.phone, textInputAction: TextInputAction.next,
-                                inputFormatters: [FilteringTextInputFormatter.digitsOnly, TelefoneInputFormatter()],
-                                decoration: const InputDecoration(labelText: 'WhatsApp *', hintText: '(00) 00000-0000'),
-                                validator: (v) => v!.length < 14 ? 'Telefone inválido' : null
-                              )
-                            )
-                          ]
-                        ),
-                        const SizedBox(height: 20),
-
-                        if (_tipoEntrega == 'ENTREGA') ...[
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _cep, keyboardType: TextInputType.number, textInputAction: TextInputAction.next,
-                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, CepInputFormatter()],
-                                  decoration: InputDecoration(
-                                    labelText: 'CEP *',
-                                    suffixIcon: _buscandoCep ? const Padding(padding: EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.search)
-                                  ),
-                                  validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
-                                  onChanged: (v) { if (v.length == 9) _buscarCEP(); }
-                                )
-                              ),
-                              const SizedBox(width: 15),
-                              Expanded(
-                                flex: 2,
-                                child: TextFormField(
-                                  controller: _logradouro, decoration: const InputDecoration(labelText: 'Rua / Avenida *'),
-                                  validator: (v) => v!.isEmpty ? 'Obrigatório' : null
-                                )
-                              )
-                            ]
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _numero, textInputAction: TextInputAction.next, inputFormatters: [NumeroEnderecoFormatter()],
-                                  decoration: const InputDecoration(labelText: 'Número *', hintText: '123 ou SN'),
-                                  validator: (v) => v!.isEmpty ? 'Obrigatório' : null
-                                )
-                              ),
-                              const SizedBox(width: 15),
-                              Expanded(
-                                flex: 2,
-                                child: TextFormField(
-                                  controller: _complemento, textInputAction: TextInputAction.next,
-                                  decoration: const InputDecoration(labelText: 'Complemento', hintText: 'Apto, Bloco...')
-                                )
-                              )
-                            ]
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _bairro, decoration: const InputDecoration(labelText: 'Bairro *'), validator: (v) => v!.isEmpty ? 'Obrigatório' : null
-                                )
-                              ),
-                              const SizedBox(width: 15),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _cidade, decoration: const InputDecoration(labelText: 'Cidade *'), validator: (v) => v!.isEmpty ? 'Obrigatório' : null
-                                )
-                              )
-                            ]
-                          ),
-                          const SizedBox(height: 30)
-                        ],
-
-                        const Text("3. Pagamento", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                        const SizedBox(height: 15),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _formaPagamento,
-                                items: ['PIX', 'CRÉDITO', 'DÉBITO', 'DINHEIRO'].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                                onChanged: (v) => setState(() { _formaPagamento = v!; _precisaTroco = false; _trocoPara.clear(); }),
-                                decoration: const InputDecoration(labelText: 'Forma de Pagamento')
-                              )
-                            ),
-                            const SizedBox(width: 15),
-                            if (_formaPagamento == 'DINHEIRO') ...[
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    SwitchListTile(
-                                      title: const Text("Precisa de troco?"), activeThumbColor: Colors.green, value: _precisaTroco,
-                                      onChanged: (v) => setState(() => _precisaTroco = v)
-                                    ),
-                                    if (_precisaTroco)
-                                      TextFormField(
-                                        controller: _trocoPara, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                        decoration: const InputDecoration(labelText: 'Troco para quanto?', hintText: 'Ex: 100,00', prefixText: 'R\$ '),
-                                        validator: (v) => v!.isEmpty ? 'Informe o valor' : null
-                                      )
-                                  ]
-                                )
-                              )
-                            ] else ...[
-                              const Expanded(child: SizedBox())
-                            ]
-                          ]
-                        ),
-                        const SizedBox(height: 40),
-
-                        Row(
-                          children: [
-                            Expanded(
-                              child: SizedBox(
-                                height: 60,
-                                child: OutlinedButton.icon(
-                                  onPressed: () => Navigator.pop(context),
-                                  icon: const Icon(Icons.arrow_back), label: const Text("VOLTAR", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))
-                                )
-                              )
-                            ),
-                            const SizedBox(width: 15),
-                            Expanded(
-                              flex: 2,
-                              child: SizedBox(
-                                height: 60,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                                  onPressed: _finalizarPedido,
-                                  icon: const Icon(Icons.send_rounded, size: 28), label: const Text("ENVIAR PEDIDO", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))
-                                )
-                              )
-                            )
-                          ]
-                        )
-                      ]
-                    )
-                  )
-                )
-              )
-            ]
-          )
-        )
-      ),
-    );
-  }
-}
-
 // =============================================================================
 // --- MÓDULO ERP (ADMINISTRAÇÃO E GESTÃO) ---
 // =============================================================================
@@ -1259,11 +403,38 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
   final _valorContadoController = TextEditingController();
   final _observacaoController = TextEditingController();
   bool _fechandoCaixa = false;
+  
+  bool _isLoading = true;
+  String? _erro;
+  List<Pedido> _pedidosReais = [];
+  final DashboardPedidoService _pedidoService = DashboardPedidoService();
 
   @override
   void initState() {
+    _carregarDados();
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+  }
+
+  Future<void> _carregarDados() async {
+    setState(() {
+      _isLoading = true;
+      _erro = null;
+    });
+    try {
+      final pedidos = await _pedidoService.obterPedidos();
+      if (!mounted) return;
+      setState(() {
+        _pedidosReais = pedidos;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _erro = e.toString();
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -1359,7 +530,7 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
     final totalEntregas = pagos.where((p) => p.tipoEntrega == 'ENTREGA').length;
     final totalRetiradas = pagos.where((p) => p.tipoEntrega == 'RETIRADA').length;
     final totalTaxaEntrega = pagos.where((p) => p.tipoEntrega == 'ENTREGA').fold<double>(0, (s, p) => s + p.taxaEntrega);
-    final aguardandoPgto = listaPedidosGerais.where((p) => p.statusPagamento == 'AGUARDANDO').length;
+    final aguardandoPgto = _pedidosReais.where((p) => p.statusPagamento == 'AGUARDANDO').length;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1543,8 +714,31 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
 
   @override
   Widget build(BuildContext context) {
-    final pagos = listaPedidosGerais.where((p) => p.statusPagamento == 'PAGO').toList();
-    final cancelados = listaPedidosGerais.where((p) => p.statusLogistico == 'CANCELADO').toList();
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: Colors.deepOrange));
+    }
+    if (_erro != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            Text("Erro ao carregar relatórios: $_erro", style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _carregarDados,
+              icon: const Icon(Icons.refresh),
+              label: const Text("Tentar Novamente"),
+            )
+          ],
+        ),
+      );
+    }
+
+    final pagos = _pedidosReais.where((p) => p.statusPagamento == 'PAGO').toList();
+    final cancelados = _pedidosReais.where((p) => p.statusLogistico == 'CANCELADO').toList();
+    
     return Column(children: [
       Container(
         color: Colors.white,
@@ -1552,7 +746,17 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             const Text("Fechamento & Relatórios", style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
-            Text("Operador: ${widget.usuarioLogado.nomeCompleto}", style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: Colors.deepOrange),
+                  tooltip: 'Atualizar Dados',
+                  onPressed: _carregarDados,
+                ),
+                const SizedBox(width: 16),
+                Text("Operador: ${widget.usuarioLogado.nomeCompleto}", style: const TextStyle(color: Colors.grey, fontSize: 13)),
+              ],
+            ),
           ]),
           const SizedBox(height: 12),
           TabBar(

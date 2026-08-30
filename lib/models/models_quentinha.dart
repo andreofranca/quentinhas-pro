@@ -256,45 +256,4 @@ class PedidoDraft {
 // MOCK DATA PARA O DASHBOARD (VÁLIDO PARA A MISSÃO EOS-004.1)
 // ============================================================================
 
-final List<OfertaQuentinha> mockCardapioHoje = [
-  OfertaQuentinha(
-    id: 'Q01',
-    nome: 'Frango Assado com Batatas',
-    descricao: 'Acompanha arroz, feijão, farofa e salada mista.',
-    tamanhos: [
-      TamanhoOpcao(tamanho: TamanhoQuentinha.P, preco: 15.00),
-      TamanhoOpcao(tamanho: TamanhoQuentinha.M, preco: 18.00),
-      TamanhoOpcao(tamanho: TamanhoQuentinha.G, preco: 22.00),
-    ],
-  ),
-  OfertaQuentinha(
-    id: 'Q02',
-    nome: 'Bife Acebolado',
-    descricao: 'Acompanha arroz, feijão tropeiro e fritas.',
-    tamanhos: [
-      TamanhoOpcao(tamanho: TamanhoQuentinha.P, preco: 17.00),
-      TamanhoOpcao(tamanho: TamanhoQuentinha.M, preco: 20.00),
-      TamanhoOpcao(tamanho: TamanhoQuentinha.G, preco: 25.00),
-    ],
-  ),
-  OfertaQuentinha(
-    id: 'Q03',
-    nome: 'Feijoada Completa',
-    descricao: 'Acompanha arroz, couve refogada, farofa e torresmo.',
-    tamanhos: [
-      TamanhoOpcao(tamanho: TamanhoQuentinha.P, preco: 20.00, quantidadeDisponivel: 0), // P esgotado
-      TamanhoOpcao(tamanho: TamanhoQuentinha.M, preco: 25.00),
-      TamanhoOpcao(tamanho: TamanhoQuentinha.G, preco: 30.00, quantidadeDisponivel: 1), // Apenas 1 G restante!
-    ],
-  ),
-  OfertaQuentinha(
-    id: '4',
-    nome: 'Salada Fit Completa',
-    descricao: 'Mix de folhas, frango desfiado, batata doce, tomate e molho de iogurte.',
-    tamanhos: [
-      TamanhoOpcao(tamanho: TamanhoQuentinha.P, preco: 18.00, quantidadeDisponivel: 0), // Esgotado
-      TamanhoOpcao(tamanho: TamanhoQuentinha.M, preco: 22.00, quantidadeDisponivel: 0), // Esgotado
-      TamanhoOpcao(tamanho: TamanhoQuentinha.G, preco: 28.00, quantidadeDisponivel: 0), // Esgotado
-    ],
-  ),
-];
+
