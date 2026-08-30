@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'services/pedido_service.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,7 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'services/dashboard_pedido_service.dart';
 import 'package:lanchonete_controle/services/api_client.dart';
 import 'constants.dart';
-import 'formatters.dart'; 
+import 'formatters.dart';
 import 'screens/teste_estoque_screen.dart';
 import 'theme/app_theme.dart';
 import 'screens/dashboard/tela_dashboard_quentinhas.dart';
@@ -68,17 +69,17 @@ class AppConfiguracaoInvalida extends StatelessWidget {
 
 class Produto {
   final String idProduto;
-  String nome, descricao, categoria, imagemUrl; 
+  String nome, descricao, categoria, imagemUrl;
   double preco;
   int estoqueAtual;
   int estoqueMinimo; // Nível mínimo de alerta: abaixo disso = Crítico
-  
+
   Produto({
-    required this.idProduto, 
-    required this.nome, 
-    required this.descricao, 
-    required this.preco, 
-    required this.categoria, 
+    required this.idProduto,
+    required this.nome,
+    required this.descricao,
+    required this.preco,
+    required this.categoria,
     required this.imagemUrl,
     this.estoqueAtual = estoqueDefault,
     this.estoqueMinimo = 8,
@@ -106,10 +107,10 @@ class ResultadoNotificacaoWhatsApp {
 
 class Pedido {
   final String numeroPedido, nomeCliente, telefoneCliente;
-  String statusLogistico; 
-  String statusPagamento; 
-  final String tipoEntrega; 
-  final String? enderecoCompleto; 
+  String statusLogistico;
+  String statusPagamento;
+  final String tipoEntrega;
+  final String? enderecoCompleto;
   final double taxaEntrega;
   final String formaPagamento;
   final double? trocoPara;
@@ -122,18 +123,18 @@ class Pedido {
   bool notificacaoDespachoCliente;
 
   Pedido({
-    required this.numeroPedido, 
-    required this.nomeCliente, 
-    required this.telefoneCliente, 
-    required this.tipoEntrega, 
-    this.enderecoCompleto, 
+    required this.numeroPedido,
+    required this.nomeCliente,
+    required this.telefoneCliente,
+    required this.tipoEntrega,
+    this.enderecoCompleto,
     required this.taxaEntrega,
-    required this.formaPagamento, 
+    required this.formaPagamento,
     this.trocoPara,
-    required this.itens, 
-    required this.total, 
-    required this.dataHora, 
-    this.statusLogistico = 'NOVO', 
+    required this.itens,
+    required this.total,
+    required this.dataHora,
+    this.statusLogistico = 'NOVO',
     this.statusPagamento = 'AGUARDANDO',
     this.notificacaoNovoPedidoFabrica = false,
     this.notificacaoNovoPedidoCliente = false,
@@ -154,7 +155,7 @@ class Pedido {
       ),
       quantidade: i['quantidade'] ?? 1,
     )).toList();
-    
+
     return Pedido(
       numeroPedido: json['id'] ?? '',
       nomeCliente: json['cliente_nome'] ?? 'Cliente não informado',
@@ -174,50 +175,37 @@ class Pedido {
 }
 
 class Usuario {
-  final String idUsuario; 
+  final String idUsuario;
   String senha, nomeCompleto, cargo, cpf, telefone, email;
-  String cep, logradouro, numero, complemento, bairro, cidade, uf; 
+  String cep, logradouro, numero, complemento, bairro, cidade, uf;
   bool situacaoConta;
-  
-  Usuario({ 
-    required this.idUsuario, 
-    required this.senha, 
-    required this.nomeCompleto, 
-    required this.cargo, 
-    this.cpf = "", 
-    this.telefone = "", 
-    this.email = "", 
-    this.cep = "", 
-    this.logradouro = "", 
-    this.numero = "", 
-    this.complemento = "", 
-    this.bairro = "", 
-    this.cidade = "", 
-    this.uf = "", 
+
+  Usuario({
+    required this.idUsuario,
+    required this.senha,
+    required this.nomeCompleto,
+    required this.cargo,
+    this.cpf = "",
+    this.telefone = "",
+    this.email = "",
+    this.cep = "",
+    this.logradouro = "",
+    this.numero = "",
+    this.complemento = "",
+    this.bairro = "",
+    this.cidade = "",
+    this.uf = "",
     this.situacaoConta = true
   });
-}
-
-class RegistroDiferencaCaixa {
-  final String id;
-  final DateTime dataHora;
-  final double faturamentoSistema;
-  final double valorContado;
-  final double diferenca;
-  final String caixaId;
-  final String gerenteId;
-  final String observacao;
-  RegistroDiferencaCaixa({required this.id, required this.dataHora, required this.faturamentoSistema, required this.valorContado, required this.diferenca, required this.caixaId, required this.gerenteId, required this.observacao});
 }
 
 // --- 2. BANCOS DE DADOS TEMPORÁRIOS ---
 List<Usuario> listaUsuarios = [
   Usuario(idUsuario: "ANDRE", senha: "123", nomeCompleto: "André Administrador", cargo: "ADMIN"),
-  Usuario(idUsuario: "JOAO", senha: "123", nomeCompleto: "João Atendente", cargo: "FUNCIONARIO") 
+  Usuario(idUsuario: "JOAO", senha: "123", nomeCompleto: "João Atendente", cargo: "FUNCIONARIO")
 ];
 List<ItemCarrinho> carrinhoAtual = [];
-List<Pedido> listaPedidosGerais = []; 
-List<RegistroDiferencaCaixa> listaFechamentosDiferenca = [];
+List<Pedido> listaPedidosGerais = [];
 
 // =============================================================================
 // 🍔 CARDÁPIO GIGANTE RESTAURADO (COM ESTOQUE)
@@ -247,7 +235,7 @@ class AppLanchonete extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false, 
+      debugShowCheckedModeBanner: false,
       title: 'Quentinhas Pro',
       theme: AppTheme.themeData,
       home: TelaDashboardQuentinhas(whatsappService: whatsappService),
@@ -304,16 +292,16 @@ class _PainelTesteCompletoState extends State<PainelTesteCompleto> {
 // =============================================================================
 // --- MÓDULO DO CLIENTE ---
 // =============================================================================
-class TelaCardapioCliente extends StatefulWidget { 
-  const TelaCardapioCliente({super.key}); 
-  @override State<TelaCardapioCliente> createState() => _TelaCardapioClienteState(); 
+class TelaCardapioCliente extends StatefulWidget {
+  const TelaCardapioCliente({super.key});
+  @override State<TelaCardapioCliente> createState() => _TelaCardapioClienteState();
 }
 
 class _TelaCardapioClienteState extends State<TelaCardapioCliente> {
-  void _adicionarAoCarrinho(Produto p) { 
+  void _adicionarAoCarrinho(Produto p) {
     if (p.estoqueAtual <= 0) return; // TRAVA DE ESTOQUE
-    setState(() { 
-      int index = carrinhoAtual.indexWhere((item) => item.produto.idProduto == p.idProduto); 
+    setState(() {
+      int index = carrinhoAtual.indexWhere((item) => item.produto.idProduto == p.idProduto);
       if (index != -1) {
         if (carrinhoAtual[index].quantidade < p.estoqueAtual) {
           carrinhoAtual[index].quantidade++;
@@ -324,16 +312,16 @@ class _TelaCardapioClienteState extends State<TelaCardapioCliente> {
       } else {
         carrinhoAtual.add(ItemCarrinho(produto: p));
       }
-    }); 
+    });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("${p.nome} adicionado!"), duration: const Duration(seconds: 1), backgroundColor: Colors.green)
-    ); 
+    );
   }
-  
+
   Widget _buildProdutoCard(Produto p) {
     bool esgotado = p.estoqueAtual <= 0;
     IconData iconCategoria = _getIconeCategoria(p.categoria);
-    
+
     return Card(
       elevation: 6,
       clipBehavior: Clip.antiAlias,
@@ -508,16 +496,16 @@ class _TelaCardapioClienteState extends State<TelaCardapioCliente> {
     }
   }
 
-  @override 
+  @override
   Widget build(BuildContext context) {
     int totalItens = carrinhoAtual.fold(0, (total, item) => total + item.quantidade);
-    
+
     return DefaultTabController(
       length: categoriasMenu.length,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("Cardápio Digital", style: TextStyle(fontWeight: FontWeight.bold)), 
-          centerTitle: true, 
+          title: const Text("Cardápio Digital", style: TextStyle(fontWeight: FontWeight.bold)),
+          centerTitle: true,
           leading: IconButton(
             icon: const Icon(Icons.lock_outline),
             onPressed: () => Navigator.push(
@@ -548,7 +536,7 @@ class _TelaCardapioClienteState extends State<TelaCardapioCliente> {
           children: categoriasMenu.map((categoria) {
             List<Produto> produtosCategoria =
                 cardapio.where((p) => p.categoria == categoria).toList();
-            
+
             return Center(
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 1200),
@@ -594,30 +582,30 @@ class _TelaCardapioClienteState extends State<TelaCardapioCliente> {
   }
 }
 
-class TelaCheckoutExpresso extends StatefulWidget { 
-  const TelaCheckoutExpresso({super.key}); 
-  @override State<TelaCheckoutExpresso> createState() => _TelaCheckoutExpressoState(); 
+class TelaCheckoutExpresso extends StatefulWidget {
+  const TelaCheckoutExpresso({super.key});
+  @override State<TelaCheckoutExpresso> createState() => _TelaCheckoutExpressoState();
 }
 
 class _TelaCheckoutExpressoState extends State<TelaCheckoutExpresso> {
-  final _chaveForm = GlobalKey<FormState>(); 
-  final _nome = TextEditingController(); 
-  final _telefone = TextEditingController(); 
-  final _cep = TextEditingController(); 
-  final _logradouro = TextEditingController(); 
-  final _numero = TextEditingController(); 
-  final _complemento = TextEditingController(); 
-  final _bairro = TextEditingController(); 
-  final _cidade = TextEditingController(); 
+  final _chaveForm = GlobalKey<FormState>();
+  final _nome = TextEditingController();
+  final _telefone = TextEditingController();
+  final _cep = TextEditingController();
+  final _logradouro = TextEditingController();
+  final _numero = TextEditingController();
+  final _complemento = TextEditingController();
+  final _bairro = TextEditingController();
+  final _cidade = TextEditingController();
   final _trocoPara = TextEditingController();
-  
-  bool _buscandoCep = false; 
-  String _tipoEntrega = 'ENTREGA'; 
-  String _formaPagamento = 'PIX'; 
+
+  bool _buscandoCep = false;
+  String _tipoEntrega = 'ENTREGA';
+  String _formaPagamento = 'PIX';
   bool _precisaTroco = false;
-  
-  double get subtotal => carrinhoAtual.fold(0, (total, item) => total + (item.produto.preco * item.quantidade)); 
-  double get taxaAplicada => _tipoEntrega == 'ENTREGA' ? taxaEntregaFixa : 0.0; 
+
+  double get subtotal => carrinhoAtual.fold(0, (total, item) => total + (item.produto.preco * item.quantidade));
+  double get taxaAplicada => _tipoEntrega == 'ENTREGA' ? taxaEntregaFixa : 0.0;
   double get valorTotal => subtotal + taxaAplicada;
 
   String _normalizarTelefoneWhatsApp(String telefone) {
@@ -727,82 +715,82 @@ class _TelaCheckoutExpressoState extends State<TelaCheckoutExpresso> {
       enviadoCliente: enviadoCliente,
     );
   }
-  
-  Future<void> _buscarCEP() async { 
-    String cep = _cep.text.replaceAll(RegExp(r'[^0-9]'), ''); 
-    if (cep.length != 8) return; 
-    setState(() => _buscandoCep = true); 
-    try { 
-      final response = await http.get(Uri.parse('https://viacep.com.br/ws/$cep/json/')); 
-      if (!mounted) return; 
-      if (response.statusCode == 200) { 
-        var dados = jsonDecode(response.body); 
-        if (dados['erro'] == null) { 
-          setState(() { 
-            _logradouro.text = dados['logradouro'] ?? ''; 
-            _bairro.text = dados['bairro'] ?? ''; 
-            _cidade.text = dados['localidade'] ?? ''; 
-          }); 
-        } 
-      } 
+
+  Future<void> _buscarCEP() async {
+    String cep = _cep.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cep.length != 8) return;
+    setState(() => _buscandoCep = true);
+    try {
+      final response = await http.get(Uri.parse('https://viacep.com.br/ws/$cep/json/'));
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        var dados = jsonDecode(response.body);
+        if (dados['erro'] == null) {
+          setState(() {
+            _logradouro.text = dados['logradouro'] ?? '';
+            _bairro.text = dados['bairro'] ?? '';
+            _cidade.text = dados['localidade'] ?? '';
+          });
+        }
+      }
     } catch (e) {
       debugPrint("Erro CEP: $e");
-    } finally { 
-      setState(() => _buscandoCep = false); 
-    } 
+    } finally {
+      setState(() => _buscandoCep = false);
+    }
   }
-  
+
   Future<void> _finalizarPedido() async {
     if (_chaveForm.currentState!.validate()) {
       if (carrinhoAtual.isEmpty) return;
-      
-      double valorTrocoCalculado = 0; 
+
+      double valorTrocoCalculado = 0;
       double valorDinheiroCliente = 0;
-      
-      if (_formaPagamento == 'DINHEIRO' && _precisaTroco) { 
-        valorDinheiroCliente = double.tryParse(_trocoPara.text.replaceAll(',', '.')) ?? 0; 
-        if (valorDinheiroCliente <= valorTotal) { 
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("O valor para troco deve ser maior que o total!"), backgroundColor: Colors.red)); 
-          return; 
-        } 
-        valorTrocoCalculado = valorDinheiroCliente - valorTotal; 
+
+      if (_formaPagamento == 'DINHEIRO' && _precisaTroco) {
+        valorDinheiroCliente = double.tryParse(_trocoPara.text.replaceAll(',', '.')) ?? 0;
+        if (valorDinheiroCliente <= valorTotal) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("O valor para troco deve ser maior que o total!"), backgroundColor: Colors.red));
+          return;
+        }
+        valorTrocoCalculado = valorDinheiroCliente - valorTotal;
       }
-      
+
       // REGRA DE NEGÓCIO: BAIXA DE ESTOQUE
       for (var item in carrinhoAtual) {
         Produto pReal = cardapio.firstWhere((p) => p.idProduto == item.produto.idProduto);
         pReal.estoqueAtual -= item.quantidade;
       }
 
-      String numeroPedido = "#PED-${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}"; 
+      String numeroPedido = "#PED-${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}";
       String? enderecoMontado;
-      
+
       if (_tipoEntrega == 'ENTREGA') {
         enderecoMontado = "${_logradouro.text}, ${_numero.text} - ${_complemento.text.isNotEmpty ? '(${_complemento.text}) - ' : ''}${_bairro.text}, ${_cidade.text}";
       }
-      
+
       listaPedidosGerais.add(Pedido(
-        numeroPedido: numeroPedido, 
-        nomeCliente: _nome.text, 
-        telefoneCliente: _telefone.text, 
-        tipoEntrega: _tipoEntrega, 
-        taxaEntrega: taxaAplicada, 
-        enderecoCompleto: enderecoMontado, 
-        formaPagamento: _formaPagamento, 
-        trocoPara: valorDinheiroCliente > 0 ? valorDinheiroCliente : null, 
-        itens: List.from(carrinhoAtual), 
-        total: valorTotal, 
+        numeroPedido: numeroPedido,
+        nomeCliente: _nome.text,
+        telefoneCliente: _telefone.text,
+        tipoEntrega: _tipoEntrega,
+        taxaEntrega: taxaAplicada,
+        enderecoCompleto: enderecoMontado,
+        formaPagamento: _formaPagamento,
+        trocoPara: valorDinheiroCliente > 0 ? valorDinheiroCliente : null,
+        itens: List.from(carrinhoAtual),
+        total: valorTotal,
         dataHora: DateTime.now()
       ));
-      
+
       String textoItens = carrinhoAtual.map((i) => "${i.quantidade}x ${i.produto.nome} (${CurrencyHelper.formatCurrency(i.produto.preco * i.quantidade)})" ).join('\n');
       String cabecalhoLogistica = _tipoEntrega == 'ENTREGA' ? "🛵 *ENTREGA EM:*\n$enderecoMontado\n*Taxa de Entrega:* ${CurrencyHelper.formatCurrency(taxaAplicada)}\n" : "🛍️ *RETIRADA NO BALCÃO*\nO cliente virá buscar na loja.\n";
-      String detalhesPagamento = "*Forma de Pagamento:* $_formaPagamento"; 
-      
+      String detalhesPagamento = "*Forma de Pagamento:* $_formaPagamento";
+
       if (_formaPagamento == 'DINHEIRO') {
         detalhesPagamento += _precisaTroco ? "\n*Troco para:* R\$ ${valorDinheiroCliente.toStringAsFixed(2).replaceAll('.', ',')} *(Levar R\$ ${valorTrocoCalculado.toStringAsFixed(2).replaceAll('.', ',')} de troco)*" : "\n*Não precisa de troco.*";
       }
-      
+
       final pedidoCriado = listaPedidosGerais.last;
 
       final resultadoNotificacao = await _enviarMensagensNovoPedido(
@@ -841,66 +829,66 @@ class _TelaCheckoutExpressoState extends State<TelaCheckoutExpresso> {
           );
         }
       }
-      
-      setState(() => carrinhoAtual.clear()); 
+
+      setState(() => carrinhoAtual.clear());
       if (mounted) {
         Navigator.pop(context);
       }
     }
   }
 
-  @override 
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Finalizar Pedido")),
       body: Center(
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 900), 
+          constraints: const BoxConstraints(maxWidth: 900),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start, 
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // LADO ESQUERDO: RESUMO
               Expanded(
-                flex: 1, 
+                flex: 1,
                 child: Container(
-                  color: Colors.white, 
-                  padding: const EdgeInsets.all(24), 
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(24),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start, 
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("Seu Pedido", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), 
-                      const Divider(), 
+                      const Text("Seu Pedido", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      const Divider(),
                       Expanded(
                         child: ListView.builder(
-                          itemCount: carrinhoAtual.length, 
-                          itemBuilder: (context, index) { 
-                            final item = carrinhoAtual[index]; 
+                          itemCount: carrinhoAtual.length,
+                          itemBuilder: (context, index) {
+                            final item = carrinhoAtual[index];
                             return ListTile(
-                              contentPadding: EdgeInsets.zero, 
-                              title: Text("${item.quantidade}x ${item.produto.nome}"), 
+                              contentPadding: EdgeInsets.zero,
+                              title: Text("${item.quantidade}x ${item.produto.nome}"),
                               trailing: Text(CurrencyHelper.formatCurrency(item.produto.preco * item.quantidade), style: const TextStyle(fontWeight: FontWeight.bold))
-                            ); 
+                            );
                           }
                         )
-                      ), 
-                      const Divider(), 
+                      ),
+                      const Divider(),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [const Text("Subtotal:"), Text(CurrencyHelper.formatCurrency(subtotal))]
-                      ), 
-                      if (_tipoEntrega == 'ENTREGA') 
+                      ),
+                      if (_tipoEntrega == 'ENTREGA')
                         Padding(
-                          padding: const EdgeInsets.only(top: 8.0), 
+                          padding: const EdgeInsets.only(top: 8.0),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [const Text("Taxa de Entrega:", style: TextStyle(color: Colors.red)), Text("+ R\$ ${taxaAplicada.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(color: Colors.red))]
                           )
-                        ), 
-                      const Divider(), 
+                        ),
+                      const Divider(),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text("TOTAL:", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)), 
+                          const Text("TOTAL:", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                           Expanded(child: FittedBox(alignment: Alignment.centerRight, fit: BoxFit.scaleDown, child: Text(CurrencyHelper.formatCurrency(valorTotal), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green))))
                         ]
                       )
@@ -908,18 +896,18 @@ class _TelaCheckoutExpressoState extends State<TelaCheckoutExpresso> {
                   )
                 )
               ),
-              // LADO DIREITO: FORMULÁRIO 
+              // LADO DIREITO: FORMULÁRIO
               Expanded(
-                flex: 2, 
+                flex: 2,
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(32), 
+                  padding: const EdgeInsets.all(32),
                   child: Form(
-                    key: _chaveForm, 
+                    key: _chaveForm,
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start, 
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text("1. Como deseja receber?", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)), 
-                        const SizedBox(height: 10), 
+                        const Text("1. Como deseja receber?", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                        const SizedBox(height: 10),
                         SizedBox(
                           width: double.infinity,
                           child: SegmentedButton<String>(
@@ -941,124 +929,124 @@ class _TelaCheckoutExpressoState extends State<TelaCheckoutExpresso> {
                               setState(() => _tipoEntrega = selecionados.first);
                             },
                           ),
-                        ), 
+                        ),
                         const SizedBox(height: 20),
-                        
-                        const Text("2. Seus Dados", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)), 
-                        const SizedBox(height: 15), 
+
+                        const Text("2. Seus Dados", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                        const SizedBox(height: 15),
                         Row(
                           children: [
                             Expanded(
-                              flex: 2, 
+                              flex: 2,
                               child: TextFormField(
-                                controller: _nome, textInputAction: TextInputAction.next, inputFormatters: [PrimeiraLetraMaiusculaFormatter()], 
-                                decoration: const InputDecoration(labelText: 'Como quer ser chamado? *', hintText: 'Seu Nome'), 
+                                controller: _nome, textInputAction: TextInputAction.next, inputFormatters: [PrimeiraLetraMaiusculaFormatter()],
+                                decoration: const InputDecoration(labelText: 'Como quer ser chamado? *', hintText: 'Seu Nome'),
                                 validator: (v) => v!.isEmpty ? 'Obrigatório' : null
                               )
-                            ), 
-                            const SizedBox(width: 15), 
+                            ),
+                            const SizedBox(width: 15),
                             Expanded(
                               child: TextFormField(
-                                controller: _telefone, keyboardType: TextInputType.phone, textInputAction: TextInputAction.next, 
-                                inputFormatters: [FilteringTextInputFormatter.digitsOnly, TelefoneInputFormatter()], 
-                                decoration: const InputDecoration(labelText: 'WhatsApp *', hintText: '(00) 00000-0000'), 
+                                controller: _telefone, keyboardType: TextInputType.phone, textInputAction: TextInputAction.next,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly, TelefoneInputFormatter()],
+                                decoration: const InputDecoration(labelText: 'WhatsApp *', hintText: '(00) 00000-0000'),
                                 validator: (v) => v!.length < 14 ? 'Telefone inválido' : null
                               )
                             )
                           ]
-                        ), 
+                        ),
                         const SizedBox(height: 20),
-                        
+
                         if (_tipoEntrega == 'ENTREGA') ...[
                           Row(
                             children: [
                               Expanded(
                                 child: TextFormField(
-                                  controller: _cep, keyboardType: TextInputType.number, textInputAction: TextInputAction.next, 
-                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, CepInputFormatter()], 
+                                  controller: _cep, keyboardType: TextInputType.number, textInputAction: TextInputAction.next,
+                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, CepInputFormatter()],
                                   decoration: InputDecoration(
-                                    labelText: 'CEP *', 
+                                    labelText: 'CEP *',
                                     suffixIcon: _buscandoCep ? const Padding(padding: EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.search)
-                                  ), 
-                                  validator: (v) => v!.isEmpty ? 'Obrigatório' : null, 
+                                  ),
+                                  validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
                                   onChanged: (v) { if (v.length == 9) _buscarCEP(); }
                                 )
-                              ), 
-                              const SizedBox(width: 15), 
+                              ),
+                              const SizedBox(width: 15),
                               Expanded(
-                                flex: 2, 
+                                flex: 2,
                                 child: TextFormField(
-                                  controller: _logradouro, decoration: const InputDecoration(labelText: 'Rua / Avenida *'), 
+                                  controller: _logradouro, decoration: const InputDecoration(labelText: 'Rua / Avenida *'),
                                   validator: (v) => v!.isEmpty ? 'Obrigatório' : null
                                 )
                               )
                             ]
-                          ), 
-                          const SizedBox(height: 20), 
+                          ),
+                          const SizedBox(height: 20),
                           Row(
                             children: [
                               Expanded(
                                 child: TextFormField(
-                                  controller: _numero, textInputAction: TextInputAction.next, inputFormatters: [NumeroEnderecoFormatter()], 
-                                  decoration: const InputDecoration(labelText: 'Número *', hintText: '123 ou SN'), 
+                                  controller: _numero, textInputAction: TextInputAction.next, inputFormatters: [NumeroEnderecoFormatter()],
+                                  decoration: const InputDecoration(labelText: 'Número *', hintText: '123 ou SN'),
                                   validator: (v) => v!.isEmpty ? 'Obrigatório' : null
                                 )
-                              ), 
-                              const SizedBox(width: 15), 
+                              ),
+                              const SizedBox(width: 15),
                               Expanded(
-                                flex: 2, 
+                                flex: 2,
                                 child: TextFormField(
-                                  controller: _complemento, textInputAction: TextInputAction.next, 
+                                  controller: _complemento, textInputAction: TextInputAction.next,
                                   decoration: const InputDecoration(labelText: 'Complemento', hintText: 'Apto, Bloco...')
                                 )
                               )
                             ]
-                          ), 
-                          const SizedBox(height: 20), 
+                          ),
+                          const SizedBox(height: 20),
                           Row(
                             children: [
                               Expanded(
                                 child: TextFormField(
                                   controller: _bairro, decoration: const InputDecoration(labelText: 'Bairro *'), validator: (v) => v!.isEmpty ? 'Obrigatório' : null
                                 )
-                              ), 
-                              const SizedBox(width: 15), 
+                              ),
+                              const SizedBox(width: 15),
                               Expanded(
                                 child: TextFormField(
                                   controller: _cidade, decoration: const InputDecoration(labelText: 'Cidade *'), validator: (v) => v!.isEmpty ? 'Obrigatório' : null
                                 )
                               )
                             ]
-                          ), 
+                          ),
                           const SizedBox(height: 30)
                         ],
-                        
-                        const Text("3. Pagamento", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)), 
-                        const SizedBox(height: 15), 
+
+                        const Text("3. Pagamento", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                        const SizedBox(height: 15),
                         Row(
-                          crossAxisAlignment: CrossAxisAlignment.start, 
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
                               child: DropdownButtonFormField<String>(
-                                initialValue: _formaPagamento, 
-                                items: ['PIX', 'CRÉDITO', 'DÉBITO', 'DINHEIRO'].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(), 
-                                onChanged: (v) => setState(() { _formaPagamento = v!; _precisaTroco = false; _trocoPara.clear(); }), 
+                                initialValue: _formaPagamento,
+                                items: ['PIX', 'CRÉDITO', 'DÉBITO', 'DINHEIRO'].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                                onChanged: (v) => setState(() { _formaPagamento = v!; _precisaTroco = false; _trocoPara.clear(); }),
                                 decoration: const InputDecoration(labelText: 'Forma de Pagamento')
                               )
-                            ), 
-                            const SizedBox(width: 15), 
+                            ),
+                            const SizedBox(width: 15),
                             if (_formaPagamento == 'DINHEIRO') ...[
                               Expanded(
                                 child: Column(
                                   children: [
                                     SwitchListTile(
-                                      title: const Text("Precisa de troco?"), activeThumbColor: Colors.green, value: _precisaTroco, 
+                                      title: const Text("Precisa de troco?"), activeThumbColor: Colors.green, value: _precisaTroco,
                                       onChanged: (v) => setState(() => _precisaTroco = v)
-                                    ), 
-                                    if (_precisaTroco) 
+                                    ),
+                                    if (_precisaTroco)
                                       TextFormField(
-                                        controller: _trocoPara, keyboardType: const TextInputType.numberWithOptions(decimal: true), 
-                                        decoration: const InputDecoration(labelText: 'Troco para quanto?', hintText: 'Ex: 100,00', prefixText: 'R\$ '), 
+                                        controller: _trocoPara, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                        decoration: const InputDecoration(labelText: 'Troco para quanto?', hintText: 'Ex: 100,00', prefixText: 'R\$ '),
                                         validator: (v) => v!.isEmpty ? 'Informe o valor' : null
                                       )
                                   ]
@@ -1068,28 +1056,28 @@ class _TelaCheckoutExpressoState extends State<TelaCheckoutExpresso> {
                               const Expanded(child: SizedBox())
                             ]
                           ]
-                        ), 
+                        ),
                         const SizedBox(height: 40),
-                        
+
                         Row(
                           children: [
                             Expanded(
                               child: SizedBox(
-                                height: 60, 
+                                height: 60,
                                 child: OutlinedButton.icon(
-                                  onPressed: () => Navigator.pop(context), 
+                                  onPressed: () => Navigator.pop(context),
                                   icon: const Icon(Icons.arrow_back), label: const Text("VOLTAR", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))
                                 )
                               )
-                            ), 
-                            const SizedBox(width: 15), 
+                            ),
+                            const SizedBox(width: 15),
                             Expanded(
-                              flex: 2, 
+                              flex: 2,
                               child: SizedBox(
-                                height: 60, 
+                                height: 60,
                                 child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green), 
-                                  onPressed: _finalizarPedido, 
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                                  onPressed: _finalizarPedido,
                                   icon: const Icon(Icons.send_rounded, size: 28), label: const Text("ENVIAR PEDIDO", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))
                                 )
                               )
@@ -1112,16 +1100,16 @@ class _TelaCheckoutExpressoState extends State<TelaCheckoutExpresso> {
 // =============================================================================
 // --- MÓDULO ERP (ADMINISTRAÇÃO E GESTÃO) ---
 // =============================================================================
-class TelaLogin extends StatefulWidget { 
-  const TelaLogin({super.key}); 
-  @override State<TelaLogin> createState() => _TelaLoginState(); 
+class TelaLogin extends StatefulWidget {
+  const TelaLogin({super.key});
+  @override State<TelaLogin> createState() => _TelaLoginState();
 }
 
 class _TelaLoginState extends State<TelaLogin> {
-  final _controleLogin = TextEditingController(); 
+  final _controleLogin = TextEditingController();
   final _controleSenha = TextEditingController();
   bool _carregando = false;
-  
+
   void _tentarLogin() async {
     final email = _controleLogin.text.trim();
     final senha = _controleSenha.text;
@@ -1158,36 +1146,36 @@ class _TelaLoginState extends State<TelaLogin> {
       if (!mounted) return;
       String erro = "Acesso Negado. Verifique e-mail e senha.";
       if (e is ApiException) erro = e.message;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(erro), backgroundColor: Colors.red)); 
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(erro), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _carregando = false);
     }
   }
-  
-  @override 
-  Widget build(BuildContext context) { 
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Acesso Restrito")), 
+      appBar: AppBar(title: const Text("Acesso Restrito")),
       body: Center(
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 400), padding: const EdgeInsets.all(40.0), 
+          constraints: const BoxConstraints(maxWidth: 400), padding: const EdgeInsets.all(40.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, 
+            mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(Icons.admin_panel_settings, size: 80, color: corPrimaria), const SizedBox(height: 40), 
-              TextField(controller: _controleLogin, autofocus: true, decoration: const InputDecoration(labelText: 'E-MAIL', prefixIcon: Icon(Icons.email))), const SizedBox(height: 20), 
-              TextField(controller: _controleSenha, obscureText: true, onSubmitted: (_) => _tentarLogin(), decoration: const InputDecoration(labelText: 'SENHA', prefixIcon: Icon(Icons.lock))), const SizedBox(height: 30), 
+              const Icon(Icons.admin_panel_settings, size: 80, color: corPrimaria), const SizedBox(height: 40),
+              TextField(controller: _controleLogin, autofocus: true, decoration: const InputDecoration(labelText: 'E-MAIL', prefixIcon: Icon(Icons.email))), const SizedBox(height: 20),
+              TextField(controller: _controleSenha, obscureText: true, onSubmitted: (_) => _tentarLogin(), decoration: const InputDecoration(labelText: 'SENHA', prefixIcon: Icon(Icons.lock))), const SizedBox(height: 30),
               SizedBox(height: 55, child: ElevatedButton(onPressed: _carregando ? null : _tentarLogin, child: _carregando ? const CircularProgressIndicator(color: Colors.white) : const Text("ENTRAR NO ERP")))
             ]
           )
         )
       )
-    ); 
+    );
   }
 }
 
 class TelaDashboard extends StatefulWidget {
-  final Usuario usuarioLogado; 
+  final Usuario usuarioLogado;
   const TelaDashboard({super.key, required this.usuarioLogado});
   @override State<TelaDashboard> createState() => _TelaDashboardState();
 }
@@ -1198,9 +1186,9 @@ class _TelaDashboardState extends State<TelaDashboard> {
   Widget _obterTelaAtual() {
     switch (_indiceMenuSelecionado) {
       case 0: return TelaRelatoriosFinanceiros(usuarioLogado: widget.usuarioLogado); // NOVO: DASHBOARD
-      case 1: return const TelaGestaoPedidos(); 
+      case 1: return const TelaGestaoPedidos();
       case 2: return const TelaControleEstoqueRapido(); // NOVO: ESTOQUE
-      case 3: return const TelaGestaoProdutos(); 
+      case 3: return const TelaGestaoProdutos();
       case 4: return const TelaGestaoEquipe(); // NOVO: RH
       default: return const Center(child: Text("Módulo em Construção", style: TextStyle(fontSize: 24, color: Colors.grey)));
     }
@@ -1216,11 +1204,11 @@ class _TelaDashboardState extends State<TelaDashboard> {
             child: Column(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(20), width: double.infinity, color: Colors.black26, 
+                  padding: const EdgeInsets.all(20), width: double.infinity, color: Colors.black26,
                   child: Column(
                     children: [
-                      const CircleAvatar(radius: 40, backgroundColor: corPrimaria, child: Icon(Icons.person, size: 40, color: Colors.white)), const SizedBox(height: 10), 
-                      Text(widget.usuarioLogado.nomeCompleto, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center), 
+                      const CircleAvatar(radius: 40, backgroundColor: corPrimaria, child: Icon(Icons.person, size: 40, color: Colors.white)), const SizedBox(height: 10),
+                      Text(widget.usuarioLogado.nomeCompleto, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                       Text(widget.usuarioLogado.cargo, style: const TextStyle(color: Colors.orangeAccent, fontSize: 12))
                     ]
                   )
@@ -1251,8 +1239,8 @@ class _TelaDashboardState extends State<TelaDashboard> {
 class _ItemMenu extends StatelessWidget {
   final IconData icone; final String titulo; final bool ativo; final VoidCallback onTap;
   const _ItemMenu({required this.icone, required this.titulo, required this.ativo, required this.onTap});
-  @override Widget build(BuildContext context) { 
-    return ListTile(leading: Icon(icone, color: ativo ? corPrimaria : Colors.grey), title: Text(titulo, style: TextStyle(color: ativo ? Colors.white : Colors.grey, fontWeight: ativo ? FontWeight.bold : FontWeight.normal)), selected: ativo, selectedTileColor: Colors.white10, onTap: onTap); 
+  @override Widget build(BuildContext context) {
+    return ListTile(leading: Icon(icone, color: ativo ? corPrimaria : Colors.grey), title: Text(titulo, style: TextStyle(color: ativo ? Colors.white : Colors.grey, fontWeight: ativo ? FontWeight.bold : FontWeight.normal)), selected: ativo, selectedTileColor: Colors.white10, onTap: onTap);
   }
 }
 
@@ -1270,8 +1258,7 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
   late TabController _tabController;
   final _valorContadoController = TextEditingController();
   final _observacaoController = TextEditingController();
-  bool _diferencaAutorizada = false;
-  String _gerenteAutorizouId = '';
+  bool _fechandoCaixa = false;
 
   @override
   void initState() {
@@ -1287,122 +1274,49 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
     super.dispose();
   }
 
-  void _executarFechamento(double faturamentoSistema, double valorContado, double diferenca) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Confirmar Fechamento de Caixa"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Faturamento sistema: R\$ ${faturamentoSistema.toStringAsFixed(2).replaceAll('.', ',')}"),
-            if (diferenca.abs() > 0.01) ...[
-              Text("Valor contado: R\$ ${valorContado.toStringAsFixed(2).replaceAll('.', ',')}"),
-              Text("Diferença: R\$ ${diferenca.toStringAsFixed(2).replaceAll('.', ',')}", style: TextStyle(color: diferenca < 0 ? Colors.red : Colors.orange, fontWeight: FontWeight.bold)),
-            ],
-            const SizedBox(height: 8),
-            const Text("Esta ação arquiva todos os pedidos concluídos e cancelados."),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("CANCELAR")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            onPressed: () {
-              if (diferenca.abs() > 0.01 && _diferencaAutorizada) {
-                listaFechamentosDiferenca.add(RegistroDiferencaCaixa(
-                  id: 'FC-${DateTime.now().millisecondsSinceEpoch}',
-                  dataHora: DateTime.now(),
-                  faturamentoSistema: faturamentoSistema,
-                  valorContado: valorContado,
-                  diferenca: diferenca,
-                  caixaId: widget.usuarioLogado.idUsuario,
-                  gerenteId: _gerenteAutorizouId,
-                  observacao: _observacaoController.text.trim(),
-                ));
-              }
-              setState(() {
-                listaPedidosGerais.removeWhere((p) => p.statusPagamento == 'PAGO' || p.statusLogistico == 'CANCELADO');
-                _valorContadoController.clear();
-                _observacaoController.clear();
-                _diferencaAutorizada = false;
-                _gerenteAutorizouId = '';
-              });
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Caixa fechado com sucesso!"), backgroundColor: Colors.green));
-            },
-            child: const Text("CONFIRMAR"),
-          ),
-        ],
-      ),
-    );
-  }
+  void _executarFechamento(double valorContado) async {
+    setState(() => _fechandoCaixa = true);
+    try {
+      final res = await CaixaService().fecharCaixa(valorContado);
+      if (!mounted) return;
 
-  Future<void> _solicitarAutorizacaoGerente(double diferenca, double faturamentoSistema, double valorContado) async {
-    final loginCtrl = TextEditingController();
-    final senhaCtrl = TextEditingController();
-    bool senhaVisivel = false;
-    final autorizado = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDs) => AlertDialog(
-          title: const Row(children: [Icon(Icons.admin_panel_settings, color: Colors.deepOrange), SizedBox(width: 8), Text("Autorização Gerencial")]),
-          content: SizedBox(
-            width: 360,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text("Diferença de caixa detectada:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade700)),
-                  const SizedBox(height: 4),
-                  Text("Sistema: R\$ ${faturamentoSistema.toStringAsFixed(2).replaceAll('.', ',')}"),
-                  Text("Contado: R\$ ${valorContado.toStringAsFixed(2).replaceAll('.', ',')}"),
-                  Text("Diferença: R\$ ${diferenca.toStringAsFixed(2).replaceAll('.', ',')}", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: diferenca < 0 ? Colors.red : Colors.orange)),
-                ]),
-              ),
-              const SizedBox(height: 16),
-              const Text("Credenciais do gerente para autorização:"),
+      final faturamento = (res['faturamentoSistema'] as num).toDouble();
+      final diferenca = (res['diferenca'] as num).toDouble();
+
+      setState(() {
+        _valorContadoController.clear();
+        _observacaoController.clear();
+      });
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Caixa Fechado com Sucesso"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Faturamento sistema: R\$ ${faturamento.toStringAsFixed(2).replaceAll('.', ',')}"),
+              Text("Valor contado: R\$ ${valorContado.toStringAsFixed(2).replaceAll('.', ',')}"),
+              Text("Diferença: R\$ ${diferenca.toStringAsFixed(2).replaceAll('.', ',')}", style: TextStyle(color: diferenca < 0 ? Colors.red : (diferenca > 0 ? Colors.orange : Colors.green), fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-              TextField(controller: loginCtrl, inputFormatters: [UpperCaseTextFormatter()], decoration: const InputDecoration(labelText: "LOGIN GERENTE", prefixIcon: Icon(Icons.person))),
-              const SizedBox(height: 12),
-              TextField(
-                controller: senhaCtrl,
-                obscureText: !senhaVisivel,
-                decoration: InputDecoration(
-                  labelText: "SENHA",
-                  prefixIcon: const Icon(Icons.lock),
-                  suffixIcon: IconButton(icon: Icon(senhaVisivel ? Icons.visibility_off : Icons.visibility), onPressed: () => setDs(() => senhaVisivel = !senhaVisivel)),
-                ),
-              ),
-            ]),
+              const Text("Os dados foram salvos no servidor.", style: TextStyle(color: Colors.green)),
+            ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("CANCELAR")),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
-              icon: const Icon(Icons.verified_user),
-              label: const Text("AUTORIZAR"),
-              onPressed: () {
-                try {
-                  final gerente = listaUsuarios.firstWhere((u) => u.idUsuario == loginCtrl.text.toUpperCase() && u.senha == senhaCtrl.text && u.cargo == 'ADMIN' && u.situacaoConta);
-                  _gerenteAutorizouId = gerente.idUsuario;
-                  Navigator.pop(ctx, true);
-                } catch (_) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text("Credenciais inválidas ou usuário não é gerente."), backgroundColor: Colors.red));
-                }
-              },
-            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("OK"),
+            )
           ],
         ),
-      ),
-    );
-    if (!mounted) return;
-    if (autorizado == true) {
-      setState(() => _diferencaAutorizada = true);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Diferença autorizada por $_gerenteAutorizouId"), backgroundColor: Colors.orange));
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _fechandoCaixa = false);
     }
   }
 
@@ -1434,16 +1348,6 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
       ),
     );
   }
-
-  Widget _infoFechamento(String label, String valor, Color cor) {
-    return Column(children: [
-      Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-      const SizedBox(height: 4),
-      Text(valor, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: cor)),
-    ]);
-  }
-
-  String _formatarDataHora(DateTime dt) => "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
 
   Widget _buildAbaRelatorioSintetico(List<Pedido> pagos, List<Pedido> cancelados) {
     final faturamentoTotal = pagos.fold<double>(0, (s, p) => s + p.total);
@@ -1490,23 +1394,7 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
           const SizedBox(width: 12),
           _pgtoCard("Débito", totalDebito, pagos.where((p) => p.formaPagamento == 'DÉBITO').length, Colors.blue),
         ]),
-        if (listaFechamentosDiferenca.isNotEmpty) ...[
-          const SizedBox(height: 28),
-          const Text("Histórico de Diferenças de Caixa", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-          const SizedBox(height: 12),
-          ...listaFechamentosDiferenca.map((r) => Card(
-            child: ListTile(
-              leading: Icon(r.diferenca < 0 ? Icons.arrow_downward : Icons.arrow_upward, color: r.diferenca < 0 ? Colors.red : Colors.orange),
-              title: Text("Fechamento em ${_formatarDataHora(r.dataHora)}"),
-              subtitle: Text("Sistema: R\$ ${r.faturamentoSistema.toStringAsFixed(2).replaceAll('.', ',')}  |  Contado: R\$ ${r.valorContado.toStringAsFixed(2).replaceAll('.', ',')}  |  Dif.: R\$ ${r.diferenca.toStringAsFixed(2).replaceAll('.', ',')}${r.observacao.isNotEmpty ? '\n"${r.observacao}"' : ''}"),
-              trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text("Aut.: ${r.gerenteId}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                Text("Op.: ${r.caixaId}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
               ]),
-            ),
-          )),
-        ],
-      ]),
     );
   }
 
@@ -1604,34 +1492,18 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
     );
   }
 
-  Widget _buildAbaFechamento(double faturamentoSistema) {
+  Widget _buildAbaFechamento() {
     final valorContadoStr = _valorContadoController.text.trim().replaceAll(',', '.');
     final valorContado = double.tryParse(valorContadoStr) ?? -1.0;
     final inputValido = valorContado >= 0;
-    final diferenca = inputValido ? valorContado - faturamentoSistema : 0.0;
-    final temDiferenca = inputValido && diferenca.abs() > 0.01;
-    final podeFecchar = inputValido && (!temDiferenca || _diferencaAutorizada);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text("Fechamento de Caixa", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
         const SizedBox(height: 4),
-        const Text("Confira o caixa físico e registre qualquer diferença antes de fechar.", style: TextStyle(color: Colors.black54, fontSize: 13)),
+        const Text("Informe o valor total contado na gaveta para encerrar o caixa.", style: TextStyle(color: Colors.black54, fontSize: 13)),
         const SizedBox(height: 20),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6)]),
-          child: Row(children: [
-            const CircleAvatar(radius: 28, backgroundColor: Color(0xFFE8F5E9), child: Icon(Icons.account_balance_wallet, color: Colors.green, size: 28)),
-            const SizedBox(width: 20),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text("Faturamento pelo Sistema", style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
-              Text("R\$ ${faturamentoSistema.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.green)),
-              const Text("(total de pedidos marcados como PAGO nesta sessão)", style: TextStyle(fontSize: 11, color: Colors.grey)),
-            ]),
-          ]),
-        ),
-        const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6)]),
@@ -1641,7 +1513,7 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
             TextField(
               controller: _valorContadoController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              onChanged: (_) => setState(() { _diferencaAutorizada = false; _gerenteAutorizouId = ''; }),
+              onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(labelText: "Valor contado no caixa (R\$)", prefixIcon: Icon(Icons.attach_money), hintText: "Ex: 176,30"),
             ),
             const SizedBox(height: 12),
@@ -1652,74 +1524,19 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
             ),
           ]),
         ),
-        if (inputValido) ...[
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: temDiferenca ? (diferenca < 0 ? Colors.red.shade50 : Colors.orange.shade50) : Colors.green.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: temDiferenca ? (diferenca < 0 ? Colors.red.shade300 : Colors.orange.shade300) : Colors.green.shade300),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Icon(temDiferenca ? Icons.warning_amber : Icons.check_circle, color: temDiferenca ? (diferenca < 0 ? Colors.red : Colors.orange) : Colors.green, size: 22),
-                const SizedBox(width: 8),
-                Text(temDiferenca ? (diferenca < 0 ? "CAIXA COM FALTA" : "CAIXA COM SOBRA") : "CAIXA CONFERIDO — SEM DIFERENÇA",
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: temDiferenca ? (diferenca < 0 ? Colors.red : Colors.orange) : Colors.green)),
-              ]),
-              const SizedBox(height: 16),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                _infoFechamento("Sistema", "R\$ ${faturamentoSistema.toStringAsFixed(2).replaceAll('.', ',')}", Colors.blueGrey),
-                _infoFechamento("Contado", "R\$ ${valorContado.toStringAsFixed(2).replaceAll('.', ',')}", Colors.indigo),
-                _infoFechamento("Diferença", "R\$ ${diferenca.toStringAsFixed(2).replaceAll('.', ',')}", temDiferenca ? (diferenca < 0 ? Colors.red : Colors.orange) : Colors.green),
-              ]),
-              if (temDiferenca && !_diferencaAutorizada) ...[
-                const SizedBox(height: 16),
-                const Divider(),
-                const SizedBox(height: 8),
-                const Text("Fechamento com diferença requer autorização gerencial.", style: TextStyle(color: Colors.red, fontSize: 13)),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, padding: const EdgeInsets.all(14)),
-                    icon: const Icon(Icons.admin_panel_settings),
-                    label: const Text("SOLICITAR AUTORIZAÇÃO DO GERENTE", style: TextStyle(fontWeight: FontWeight.bold)),
-                    onPressed: () => _solicitarAutorizacaoGerente(diferenca, faturamentoSistema, valorContado),
-                  ),
-                ),
-              ],
-              if (_diferencaAutorizada) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(6)),
-                  child: Row(children: [
-                    const Icon(Icons.verified, color: Colors.green, size: 18),
-                    const SizedBox(width: 6),
-                    Text("Dif. autorizada pelo gerente: $_gerenteAutorizouId", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                  ]),
-                ),
-              ],
-            ]),
-          ),
-        ],
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: podeFecchar ? Colors.green : Colors.grey, padding: const EdgeInsets.all(18)),
-            icon: const Icon(Icons.point_of_sale, size: 26),
+            style: ElevatedButton.styleFrom(backgroundColor: inputValido ? Colors.green : Colors.grey, padding: const EdgeInsets.all(18)),
+            icon: _fechandoCaixa ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.point_of_sale, size: 26),
             label: const Text("FECHAR CAIXA DO DIA", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            onPressed: podeFecchar ? () => _executarFechamento(faturamentoSistema, inputValido ? valorContado : faturamentoSistema, diferenca) : null,
+            onPressed: inputValido && !_fechandoCaixa ? () => _executarFechamento(valorContado) : null,
           ),
         ),
         const SizedBox(height: 8),
         if (!inputValido)
-          const Text("Informe o valor contado para habilitar o fechamento.", style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center)
-        else if (temDiferenca && !_diferencaAutorizada)
-          const Text("Autorize a diferença com o gerente para prosseguir.", style: TextStyle(fontSize: 12, color: Colors.red), textAlign: TextAlign.center),
+          const Text("Informe o valor contado para habilitar o fechamento.", style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
       ]),
     );
   }
@@ -1728,7 +1545,6 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
   Widget build(BuildContext context) {
     final pagos = listaPedidosGerais.where((p) => p.statusPagamento == 'PAGO').toList();
     final cancelados = listaPedidosGerais.where((p) => p.statusLogistico == 'CANCELADO').toList();
-    final faturamentoSistema = pagos.fold<double>(0, (s, p) => s + p.total);
     return Column(children: [
       Container(
         color: Colors.white,
@@ -1758,7 +1574,7 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
           children: [
             _buildAbaRelatorioSintetico(pagos, cancelados),
             _buildAbaRelatorioAnalitico(pagos, cancelados),
-            _buildAbaFechamento(faturamentoSistema),
+            _buildAbaFechamento(),
           ],
         ),
       ),
@@ -2542,10 +2358,10 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
   }
 
   Future<bool> _solicitarAutorizacaoGerente() async { final loginCtrl = TextEditingController(); final senhaCtrl = TextEditingController(); bool autorizado = false; await showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(title: const Row(children: [Icon(Icons.security, color: Colors.red), SizedBox(width: 10), Text("Autorização de Gerente", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))]), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("O cancelamento de pedidos exige a assinatura de um Administrador."), const SizedBox(height: 15), TextField(controller: loginCtrl, inputFormatters: [UpperCaseTextFormatter()], decoration: const InputDecoration(labelText: "Usuário Admin", prefixIcon: Icon(Icons.person))), const SizedBox(height: 10), TextField(controller: senhaCtrl, obscureText: true, decoration: const InputDecoration(labelText: "Senha", prefixIcon: Icon(Icons.lock)))]), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("VOLTAR")), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () { bool adminValido = listaUsuarios.any((u) => u.idUsuario == loginCtrl.text && u.senha == senhaCtrl.text && u.cargo == 'ADMIN'); if (adminValido) { autorizado = true; Navigator.pop(ctx); } else { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Credenciais inválidas!"), backgroundColor: Colors.red)); } }, child: const Text("AUTORIZAR"))])); return autorizado; }
-  void _verDetalhesPedido(Pedido pedido) { 
+  void _verDetalhesPedido(Pedido pedido) {
     bool isCancelado = pedido.statusLogistico == 'CANCELADO';
     Color corStatus = _obterCorLogistica(pedido.statusLogistico);
-    
+
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (dialogContext, setDialogState) => AlertDialog(
       title: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2554,8 +2370,8 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
           Row(children: [
             Icon(Icons.location_on, size: 14, color: pedido.tipoEntrega == 'ENTREGA' ? Colors.purple : Colors.teal),
             const SizedBox(width: 4),
-            Chip(label: Text(pedido.tipoEntrega, style: const TextStyle(color: Colors.white, fontSize: 12)), 
-              backgroundColor: pedido.tipoEntrega == 'ENTREGA' ? Colors.purple : Colors.teal, 
+            Chip(label: Text(pedido.tipoEntrega, style: const TextStyle(color: Colors.white, fontSize: 12)),
+              backgroundColor: pedido.tipoEntrega == 'ENTREGA' ? Colors.purple : Colors.teal,
               padding: const EdgeInsets.symmetric(horizontal: 8)),
           ])
         ]),
@@ -2572,7 +2388,7 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
         ])
       ]),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        if (isCancelado) 
+        if (isCancelado)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -2586,21 +2402,21 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
         if (isCancelado) const SizedBox(height: 10),
         Text("Cliente: ${pedido.nomeCliente} (${pedido.telefoneCliente})", style: const TextStyle(fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
-        const Divider(), 
-        const Text("ITENS DO PEDIDO:", style: TextStyle(fontWeight: FontWeight.bold)), 
-        const SizedBox(height: 10), 
-        ...pedido.itens.map((i) => Padding(padding: const EdgeInsets.only(bottom: 5), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("${i.quantidade}x ${i.produto.nome}"), Text("R\$ ${(i.produto.preco * i.quantidade).toStringAsFixed(2).replaceAll('.', ',')}")]))), 
-        const Divider(), 
+        const Divider(),
+        const Text("ITENS DO PEDIDO:", style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 10),
+        ...pedido.itens.map((i) => Padding(padding: const EdgeInsets.only(bottom: 5), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("${i.quantidade}x ${i.produto.nome}"), Text("R\$ ${(i.produto.preco * i.quantidade).toStringAsFixed(2).replaceAll('.', ',')}")]))),
+        const Divider(),
         if (pedido.tipoEntrega == 'ENTREGA') ...[
-          Text("Endereço: ${pedido.enderecoCompleto}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)), 
-          const SizedBox(height: 5), 
-          Text("Taxa de Entrega: R\$ ${pedido.taxaEntrega.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(color: Colors.grey, fontSize: 12)), 
+          Text("Endereço: ${pedido.enderecoCompleto}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
+          const SizedBox(height: 5),
+          Text("Taxa de Entrega: R\$ ${pedido.taxaEntrega.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
           const Divider()
-        ], 
+        ],
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Text("TOTAL:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), 
+          const Text("TOTAL:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           Text("R\$ ${pedido.total.toStringAsFixed(2).replaceAll('.', ',')}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green))
-        ]), 
+        ]),
         const SizedBox(height: 15),
         Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(8)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -2693,11 +2509,11 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
               ),
           ]),
         )
-      ]))), 
+      ]))),
       actions: [
-        TextButton.icon(icon: const Icon(Icons.print, color: Colors.grey), label: const Text("IMPRIMIR COMANDA", style: TextStyle(color: Colors.grey)), onPressed: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Enviando comando..."), backgroundColor: Colors.blueAccent)); }), 
+        TextButton.icon(icon: const Icon(Icons.print, color: Colors.grey), label: const Text("IMPRIMIR COMANDA", style: TextStyle(color: Colors.grey)), onPressed: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Enviando comando..."), backgroundColor: Colors.blueAccent)); }),
         ElevatedButton(onPressed: () => Navigator.pop(ctx), child: const Text("FECHAR"))
-      ]))); 
+      ])));
   }
   Widget _abaOperacao(List<Pedido> lista) {
     if (lista.isEmpty) {
@@ -2789,7 +2605,7 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
                             if (!mounted) return;
                             if (!autorizado) return;
                           }
-                          
+
                           try {
                             setState(() { _isLoading = true; });
                             await _dashboardService.atualizarStatus(p.numeroPedido, novoStatus);
@@ -3388,40 +3204,40 @@ class _TelaCadastroProdutoState extends State<TelaCadastroProduto> {
 // --- NOSSOS FORMATADORES CUSTOMIZADOS ---
 // =============================================================================
 
-class PrimeiraLetraMaiusculaFormatter extends TextInputFormatter { 
-  @override TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) { 
-    if (n.text.isEmpty) return n; 
+class PrimeiraLetraMaiusculaFormatter extends TextInputFormatter {
+  @override TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) {
+    if (n.text.isEmpty) return n;
     String formatado = n.text.split(' ').map((p) => p.isEmpty ? '' : p[0].toUpperCase() + p.substring(1).toLowerCase()).join(' ');
-    return TextEditingValue(text: formatado, selection: n.selection); 
-  } 
+    return TextEditingValue(text: formatado, selection: n.selection);
+  }
 }
 
-class TelefoneInputFormatter extends TextInputFormatter { 
-  @override TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) { 
-    var t = n.text; if (t.length > 11) t = t.substring(0, 11); 
-    var f = ''; for (int i = 0; i < t.length; i++) { if (i == 0) f += '('; if (i == 2) f += ') '; if (i == 7) f += '-'; f += t[i]; } 
-    return TextEditingValue(text: f, selection: TextSelection.collapsed(offset: f.length)); 
-  } 
+class TelefoneInputFormatter extends TextInputFormatter {
+  @override TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) {
+    var t = n.text; if (t.length > 11) t = t.substring(0, 11);
+    var f = ''; for (int i = 0; i < t.length; i++) { if (i == 0) f += '('; if (i == 2) f += ') '; if (i == 7) f += '-'; f += t[i]; }
+    return TextEditingValue(text: f, selection: TextSelection.collapsed(offset: f.length));
+  }
 }
 
-class CepInputFormatter extends TextInputFormatter { 
-  @override TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) { 
-    var t = n.text; if (t.length > 8) t = t.substring(0, 8); 
-    var f = ''; for (int i = 0; i < t.length; i++) { if (i == 5) f += '-'; f += t[i]; } 
-    return TextEditingValue(text: f, selection: TextSelection.collapsed(offset: f.length)); 
-  } 
+class CepInputFormatter extends TextInputFormatter {
+  @override TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) {
+    var t = n.text; if (t.length > 8) t = t.substring(0, 8);
+    var f = ''; for (int i = 0; i < t.length; i++) { if (i == 5) f += '-'; f += t[i]; }
+    return TextEditingValue(text: f, selection: TextSelection.collapsed(offset: f.length));
+  }
 }
 
-class NumeroEnderecoFormatter extends TextInputFormatter { 
-  @override TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) { 
-    String t = n.text.toUpperCase(); if (t.isEmpty) return n; 
-    if (RegExp(r'^[0-9]+$').hasMatch(t) || t == 'S' || t == 'SN') return TextEditingValue(text: t, selection: n.selection); 
-    return o; 
-  } 
+class NumeroEnderecoFormatter extends TextInputFormatter {
+  @override TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) {
+    String t = n.text.toUpperCase(); if (t.isEmpty) return n;
+    if (RegExp(r'^[0-9]+$').hasMatch(t) || t == 'S' || t == 'SN') return TextEditingValue(text: t, selection: n.selection);
+    return o;
+  }
 }
 
-class UpperCaseTextFormatter extends TextInputFormatter { 
-  @override TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) { 
-    return TextEditingValue(text: n.text.toUpperCase(), selection: n.selection); 
-  } 
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override TextEditingValue formatEditUpdate(TextEditingValue o, TextEditingValue n) {
+    return TextEditingValue(text: n.text.toUpperCase(), selection: n.selection);
+  }
 }
