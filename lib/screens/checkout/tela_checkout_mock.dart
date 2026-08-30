@@ -1,5 +1,6 @@
+// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+
 import '../../models/models_quentinha.dart';
 import '../../theme/app_theme.dart';
 import '../../services/whatsapp_service.dart';
@@ -312,7 +313,7 @@ class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
                     Text('PAGAMENTO', style: AppTheme.themeData.textTheme.titleMedium),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<FormaPagamentoDraft>(
-                      value: _formaPagamento,
+                      initialValue: _formaPagamento,
                       decoration: const InputDecoration(border: OutlineInputBorder()),
                       items: const [
                         DropdownMenuItem(value: FormaPagamentoDraft.pix, child: Text('PIX')),

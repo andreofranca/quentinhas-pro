@@ -17,9 +17,9 @@ void main() {
   }
 
   testWidgets('Fluxo Login Sucesso - Deve redirecionar para Dashboard', (WidgetTester tester) async {
-    tester.binding.window.physicalSizeTestValue = const Size(1920, 1080);
-    tester.binding.window.devicePixelRatioTestValue = 1.0;
-    addTearDown(tester.binding.window.clearPhysicalSizeTestValue);
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
 
     ApiClient.instance.httpClient = MockClient((request) async {
       return http.Response(

@@ -146,7 +146,7 @@ class Pedido {
     List<ItemCarrinho> mappedItens = itensJson.map((i) => ItemCarrinho(
       produto: Produto(
         idProduto: i['oferta_id'] ?? '',
-        nome: (i['nome_produto'] ?? '') + ' (' + (i['sigla_tamanho'] ?? '') + ')',
+        nome: "${i['nome_produto'] ?? ''} (${i['sigla_tamanho'] ?? ''})",
         descricao: '',
         categoria: 'API',
         imagemUrl: '',

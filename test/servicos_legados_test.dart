@@ -1,8 +1,5 @@
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:lanchonete_controle/models/models_quentinha.dart';
-import 'package:lanchonete_controle/utils/whatsapp_message_builder.dart';
 import 'package:lanchonete_controle/services/cep_service.dart';
 
 void main() {

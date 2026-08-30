@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:lanchonete_controle/services/api_client.dart';
 
 class GestaoCardapioService {
