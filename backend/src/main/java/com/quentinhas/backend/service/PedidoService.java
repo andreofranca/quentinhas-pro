@@ -13,6 +13,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.UUID;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.quentinhas.backend.dto.response.PedidoDetalheResponse;
 
 @Service
 public class PedidoService {
@@ -88,6 +92,66 @@ public class PedidoService {
                 
         if (somaItens.add(request.taxaEntrega()).compareTo(request.total()) != 0) {
             throw new IllegalArgumentException("O total do pedido não corresponde à soma dos itens e taxa.");
+        }
+    }
+
+    public List<PedidoDetalheResponse> obterPedidos() {
+        String sql = """
+            SELECT json_agg(
+                json_build_object(
+                    'id', p.id,
+                    'cliente_nome', c.nome,
+                    'cliente_telefone', c.telefone,
+                    'status_operacional', p.status_operacional,
+                    'status_financeiro', p.status_financeiro,
+                    'modalidade', p.modalidade,
+                    'endereco_entrega', p.endereco_entrega,
+                    'taxa_entrega', p.taxa_entrega,
+                    'forma_pagamento', pg.forma_pagamento,
+                    'troco', pg.troco,
+                    'total', p.total,
+                    'registrado_em', p.criado_em,
+                    'itens', COALESCE((
+                         SELECT json_agg(json_build_object(
+                             'oferta_id', ip.oferta_id,
+                             'nome_produto', pr.nome,
+                             'sigla_tamanho', o.tamanho,
+                             'quantidade', ip.quantidade,
+                             'preco_unitario', ip.preco_unitario,
+                             'subtotal', ip.subtotal
+                         ))
+                         FROM itens_pedido ip
+                         LEFT JOIN ofertas o ON ip.oferta_id = o.id
+                         LEFT JOIN produtos pr ON o.produto_id = pr.id
+                         WHERE ip.pedido_id = p.id
+                    ), '[]'::json)
+                )
+            )
+            FROM pedidos p
+            LEFT JOIN clientes c ON p.cliente_id = c.id
+            LEFT JOIN pagamentos pg ON pg.pedido_id = p.id
+            WHERE p.status_operacional != 'ENTREGUE' AND p.status_operacional != 'CANCELADO'
+            """;
+
+        String jsonResult = jdbcTemplate.queryForObject(sql, String.class);
+        if (jsonResult == null || jsonResult.equals("null")) {
+            return List.of();
+        }
+        
+        try {
+            return snakeCaseMapper.readValue(jsonResult, new TypeReference<List<PedidoDetalheResponse>>() {});
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Erro ao converter json dos pedidos", e);
+        }
+    }
+
+    public void atualizarStatusOperacional(UUID pedidoId, String status) {
+        int updated = jdbcTemplate.update(
+            "UPDATE pedidos SET status_operacional = ? WHERE id = ?",
+            status, pedidoId
+        );
+        if (updated == 0) {
+            throw new IllegalArgumentException("Pedido não encontrado");
         }
     }
 }

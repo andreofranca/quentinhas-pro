@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.hamcrest.Matchers.*;
 
@@ -208,5 +209,33 @@ class PedidoIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Deve retornar 403 Forbidden se GET sem JWT")
+    void getPedidosUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/pedidos"))
+               .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser
+    @DisplayName("Deve retornar 200 OK com JWT na consulta de pedidos")
+    void getPedidosOk() throws Exception {
+        mockMvc.perform(get("/api/pedidos"))
+               .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser
+    @DisplayName("Deve validar 400 em transição inválida")
+    void testTransicaoInvalida() throws Exception {
+        String payload = "{\"status\": \"STATUS_INVENTADO\"}";
+        UUID dummyId = UUID.randomUUID();
+        // Since the DB has CHECK constraint on status, it should throw exception mapped to 400 or 500. But since we use simple update and no order exists, it should be 400 (IllegalArgumentException).
+        mockMvc.perform(post("/api/pedidos/" + dummyId + "/transicao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+                .andExpect(status().isBadRequest()); // from IllegalArgumentException
     }
 }

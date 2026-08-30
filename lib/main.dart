@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'services/dashboard_pedido_service.dart';
 import 'package:lanchonete_controle/services/api_client.dart';
 import 'constants.dart';
 import 'formatters.dart'; 
@@ -139,6 +140,37 @@ class Pedido {
     this.notificacaoDespachoFabrica = false,
     this.notificacaoDespachoCliente = false,
   });
+
+  factory Pedido.fromJson(Map<String, dynamic> json) {
+    var itensJson = json['itens'] as List? ?? [];
+    List<ItemCarrinho> mappedItens = itensJson.map((i) => ItemCarrinho(
+      produto: Produto(
+        idProduto: i['oferta_id'] ?? '',
+        nome: (i['nome_produto'] ?? '') + ' (' + (i['sigla_tamanho'] ?? '') + ')',
+        descricao: '',
+        categoria: 'API',
+        imagemUrl: '',
+        preco: (i['preco_unitario'] ?? 0).toDouble(),
+      ),
+      quantidade: i['quantidade'] ?? 1,
+    )).toList();
+    
+    return Pedido(
+      numeroPedido: json['id'] ?? '',
+      nomeCliente: json['cliente_nome'] ?? 'Cliente não informado',
+      telefoneCliente: json['cliente_telefone'] ?? '',
+      tipoEntrega: json['modalidade'] ?? '',
+      taxaEntrega: (json['taxa_entrega'] ?? 0).toDouble(),
+      formaPagamento: json['forma_pagamento'] ?? '',
+      itens: mappedItens,
+      total: (json['total'] ?? 0).toDouble(),
+      enderecoCompleto: json['endereco_entrega'],
+      trocoPara: json['troco'] != null ? (json['troco'] as num).toDouble() + (json['total'] ?? 0).toDouble() : null,
+      dataHora: json['registrado_em'] != null ? DateTime.parse(json['registrado_em']) : DateTime.now(),
+      statusLogistico: json['status_operacional'] ?? 'NOVO',
+      statusPagamento: json['status_financeiro'] ?? 'AGUARDANDO',
+    );
+  }
 }
 
 class Usuario {
@@ -2210,6 +2242,41 @@ class _TelaCadastroUsuarioState extends State<TelaCadastroUsuario> {
 // =============================================================================
 class TelaGestaoPedidos extends StatefulWidget { const TelaGestaoPedidos({super.key}); @override State<TelaGestaoPedidos> createState() => _TelaGestaoPedidosState(); }
 class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
+  bool _isLoading = true;
+  String? _erroLog;
+  final DashboardPedidoService _dashboardService = DashboardPedidoService();
+  final List<Pedido> _pedidos = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarPedidos();
+  }
+
+  Future<void> _carregarPedidos() async {
+    setState(() {
+      _isLoading = true;
+      _erroLog = null;
+    });
+    try {
+      final pedidosApi = await _dashboardService.obterPedidos();
+      setState(() {
+        _pedidos.clear();
+        _pedidos.addAll(pedidosApi);
+      });
+    } catch (e) {
+      setState(() {
+        _erroLog = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Color _obterCorLogistica(String status) { switch (status) { case 'NOVO': return Colors.redAccent; case 'PREPARANDO': return Colors.amber; case 'DESPACHADO': return Colors.blueAccent; case 'ENTREGUE': return Colors.green; case 'CANCELADO': return Colors.grey; default: return Colors.black; } }
   IconData _obterIconeStatus(String status) { switch (status) { case 'NOVO': return Icons.schedule; case 'PREPARANDO': return Icons.local_fire_department; case 'DESPACHADO': return Icons.local_shipping; case 'ENTREGUE': return Icons.check_circle; case 'CANCELADO': return Icons.cancel; default: return Icons.help; } }
 
@@ -2713,6 +2780,7 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
                             .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                             .toList(),
                         onChanged: (novoStatus) async {
+                          if (novoStatus == null) return;
                           final statusAnterior = p.statusLogistico;
                           final messenger = ScaffoldMessenger.of(context);
 
@@ -2720,29 +2788,31 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
                             final autorizado = await _solicitarAutorizacaoGerente();
                             if (!mounted) return;
                             if (!autorizado) return;
-
-                            setState(() {
-                              p.statusLogistico = novoStatus!;
-                              p.statusPagamento = 'CANCELADO';
-                            });
-
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text("Cancelado com sucesso."),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                            return;
                           }
+                          
+                          try {
+                            setState(() { _isLoading = true; });
+                            await _dashboardService.atualizarStatus(p.numeroPedido, novoStatus);
+                            await _carregarPedidos();
 
-                          if (novoStatus == null) return;
+                            if (novoStatus == 'CANCELADO') {
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text("Cancelado com sucesso."),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              return;
+                            }
 
-                          setState(() => p.statusLogistico = novoStatus);
-
-                          if (novoStatus == 'DESPACHADO' && statusAnterior != 'DESPACHADO') {
-                            Future.delayed(const Duration(milliseconds: 500), () {
-                              _notificarDespachoAutomaticamente(p);
-                            });
+                            if (novoStatus == 'DESPACHADO' && statusAnterior != 'DESPACHADO') {
+                              Future.delayed(const Duration(milliseconds: 500), () {
+                                _notificarDespachoAutomaticamente(p);
+                              });
+                            }
+                          } catch (e) {
+                            messenger.showSnackBar(SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red));
+                            setState(() { _isLoading = false; });
                           }
                         },
                       ),
@@ -2860,8 +2930,25 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
   }
   Widget _abaListagemFinal(List<Pedido> lista, {required bool isCancelado}) { if (lista.isEmpty) return Center(child: Text(isCancelado ? "Nenhum pedido cancelado." : "Nenhum pedido concluído.", style: const TextStyle(fontSize: 18, color: Colors.grey))); return ListView.builder(itemCount: lista.length, itemBuilder: (context, index) { final p = lista[index]; return Card(color: isCancelado ? Colors.red[50] : Colors.green[50], margin: const EdgeInsets.only(bottom: 15), child: ListTile(leading: Icon(isCancelado ? Icons.cancel : Icons.check_circle, color: isCancelado ? Colors.red : Colors.green, size: 30), title: Text("${p.numeroPedido} - ${p.nomeCliente}", style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [Text("Pagamento: ${p.formaPagamento} | Total: R\$ ${p.total.toStringAsFixed(2).replaceAll('.', ',')}"), const SizedBox(height: 6), _buildResumoWhatsapp(p)]), trailing: IconButton(icon: const Icon(Icons.visibility, color: Colors.blue), onPressed: () => _verDetalhesPedido(p)))); }); }
   @override Widget build(BuildContext context) {
-    List<Pedido> opAtivas = listaPedidosGerais.where((p) => p.statusLogistico != 'ENTREGUE' && p.statusLogistico != 'CANCELADO').toList()..sort((a, b) => b.dataHora.compareTo(a.dataHora)); List<Pedido> aguardandoPagamento = listaPedidosGerais.where((p) => p.statusPagamento == 'AGUARDANDO' && p.statusLogistico != 'CANCELADO').toList()..sort((a, b) => b.dataHora.compareTo(a.dataHora)); List<Pedido> concluidos = listaPedidosGerais.where((p) => p.statusLogistico == 'ENTREGUE' && p.statusPagamento == 'PAGO').toList()..sort((a, b) => b.dataHora.compareTo(a.dataHora)); List<Pedido> cancelados = listaPedidosGerais.where((p) => p.statusLogistico == 'CANCELADO').toList()..sort((a, b) => b.dataHora.compareTo(a.dataHora));
-    return DefaultTabController(length: 4, child: Padding(padding: const EdgeInsets.all(32.0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("Controle de Pedidos e Caixa", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), const SizedBox(height: 20), const TabBar(labelColor: corPrimaria, unselectedLabelColor: Colors.grey, indicatorColor: corPrimaria, isScrollable: true, tabs: [Tab(text: "1. COZINHA (Operação)"), Tab(text: "2. CAIXA (Pendentes)"), Tab(text: "3. CONCLUÍDOS (Sucesso)"), Tab(text: "4. CANCELADOS (Estornos)")]), const SizedBox(height: 20), Expanded(child: TabBarView(children: [_abaOperacao(opAtivas), _abaCaixa(aguardandoPagamento), _abaListagemFinal(concluidos, isCancelado: false), _abaListagemFinal(cancelados, isCancelado: true)]))])));
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_erroLog != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error, color: Colors.red, size: 50),
+            const SizedBox(height: 15),
+            Text('Erro: $_erroLog', style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 15),
+            ElevatedButton(onPressed: _carregarPedidos, child: const Text('Tentar Novamente')),
+          ],
+        ),
+      );
+    }
+    List<Pedido> opAtivas = _pedidos.where((p) => p.statusLogistico != 'ENTREGUE' && p.statusLogistico != 'CANCELADO').toList()..sort((a, b) => b.dataHora.compareTo(a.dataHora)); List<Pedido> aguardandoPagamento = _pedidos.where((p) => p.statusPagamento == 'AGUARDANDO' && p.statusLogistico != 'CANCELADO').toList()..sort((a, b) => b.dataHora.compareTo(a.dataHora)); List<Pedido> concluidos = _pedidos.where((p) => p.statusLogistico == 'ENTREGUE' && p.statusPagamento == 'PAGO').toList()..sort((a, b) => b.dataHora.compareTo(a.dataHora)); List<Pedido> cancelados = _pedidos.where((p) => p.statusLogistico == 'CANCELADO').toList()..sort((a, b) => b.dataHora.compareTo(a.dataHora));
+    return DefaultTabController(length: 4, child: Padding(padding: const EdgeInsets.all(32.0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Controle de Pedidos e Caixa", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), IconButton(icon: const Icon(Icons.refresh), onPressed: _carregarPedidos)]), const SizedBox(height: 20), const TabBar(labelColor: corPrimaria, unselectedLabelColor: Colors.grey, indicatorColor: corPrimaria, isScrollable: true, tabs: [Tab(text: "1. COZINHA (Operação)"), Tab(text: "2. CAIXA (Pendentes)"), Tab(text: "3. CONCLUÍDOS (Sucesso)"), Tab(text: "4. CANCELADOS (Estornos)")]), const SizedBox(height: 20), Expanded(child: TabBarView(children: [_abaOperacao(opAtivas), _abaCaixa(aguardandoPagamento), _abaListagemFinal(concluidos, isCancelado: false), _abaListagemFinal(cancelados, isCancelado: true)]))])));
   }
 }
 
