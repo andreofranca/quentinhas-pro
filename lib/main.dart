@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'services/gestao_produtos_service.dart';
+import 'services/gestao_estoque_service.dart';
+import 'services/gestao_usuarios_service.dart';
 import 'services/pedido_service.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -70,6 +73,7 @@ class Produto {
   double preco;
   int estoqueAtual;
   int estoqueMinimo; // Nível mínimo de alerta: abaixo disso = Crítico
+  bool ativo;
 
   Produto({
     required this.idProduto,
@@ -80,7 +84,22 @@ class Produto {
     required this.imagemUrl,
     this.estoqueAtual = estoqueDefault,
     this.estoqueMinimo = 8,
+    this.ativo = true,
   });
+
+  factory Produto.fromJsonFull(Map<String, dynamic> json) {
+    return Produto(
+      idProduto: json['id'] ?? '',
+      nome: json['nome'] ?? '',
+      descricao: json['descricao'] ?? '',
+      categoria: json['categoria'] ?? '',
+      imagemUrl: '',
+      preco: (json['precoBase'] ?? 0).toDouble(),
+      estoqueAtual: json['estoqueAtual'] ?? estoqueDefault,
+      estoqueMinimo: json['estoqueMinimo'] ?? 8,
+      ativo: json['ativo'] ?? true,
+    );
+  }
 }
 
 class ItemCarrinho {
@@ -196,11 +215,11 @@ class Usuario {
   });
 }
 
+@Deprecated('Use GestaoUsuariosService; retained only by the legacy cancellation dialog.')
+final List<Usuario> listaUsuarios = [];
+
+
 // --- 2. BANCOS DE DADOS TEMPORÁRIOS ---
-List<Usuario> listaUsuarios = [
-  Usuario(idUsuario: "ANDRE", senha: "123", nomeCompleto: "André Administrador", cargo: "ADMIN"),
-  Usuario(idUsuario: "JOAO", senha: "123", nomeCompleto: "João Atendente", cargo: "FUNCIONARIO")
-];
 
 // =============================================================================
 // 🍔 CARDÁPIO GIGANTE RESTAURADO (COM ESTOQUE)
@@ -789,10 +808,49 @@ class _TelaRelatoriosFinanceirosState extends State<TelaRelatoriosFinanceiros> w
 class TelaControleEstoqueRapido extends StatefulWidget { const TelaControleEstoqueRapido({super.key}); @override State<TelaControleEstoqueRapido> createState() => _TelaControleEstoqueRapidoState(); }
 class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
   final TextEditingController _buscaController = TextEditingController();
+  final _service = GestaoEstoqueService();
   String _filtroCategoria = 'Todas';
   bool _mostrarApenasAlertas = false;
   bool _simulacaoReajusteAtiva = false;
   double _reajustePercentual = 0;
+  
+  List<Produto> _estoque = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarEstoque();
+  }
+
+  Future<void> _carregarEstoque() async {
+    setState(() => _loading = true);
+    try {
+      final res = await _service.listarEstoque();
+      setState(() {
+        _estoque = res;
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() => _loading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao carregar estoque: $e')));
+      }
+    }
+  }
+
+  Future<void> _atualizar(Produto p, int novoAtual) async {
+    try {
+      await _service.atualizarEstoque(p.idProduto, novoAtual, p.estoqueMinimo);
+      setState(() {
+        p.estoqueAtual = novoAtual;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao atualizar estoque: $e')));
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -853,7 +911,7 @@ class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
   }
 
   List<String> _categoriasDisponiveis() {
-    final categorias = cardapio.map((p) => p.categoria).toSet().toList()..sort();
+    final categorias = _estoque.map((p) => p.categoria).toSet().toList()..sort();
     return ['Todas', ...categorias];
   }
 
@@ -1062,7 +1120,7 @@ class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 IconButton(
-                  onPressed: p.estoqueAtual <= 0 ? null : () => setState(() => p.estoqueAtual--),
+                  onPressed: p.estoqueAtual <= 0 ? null : () => _atualizar(p, p.estoqueAtual - 1),
                   icon: Icon(Icons.remove_circle, color: p.estoqueAtual <= 0 ? Colors.grey : Colors.red),
                 ),
                 SizedBox(
@@ -1074,7 +1132,7 @@ class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () => setState(() => p.estoqueAtual++),
+                  onPressed: () => _atualizar(p, p.estoqueAtual + 1),
                   icon: const Icon(Icons.add_circle, color: Colors.green),
                 ),
               ],
@@ -1088,7 +1146,8 @@ class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
   @override
   Widget build(BuildContext context) {
     // ORDENAÇÃO: menor estoque primeiro para priorizar atenção
-    final listaOrdenada = [...cardapio]..sort((a, b) => a.estoqueAtual.compareTo(b.estoqueAtual));
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    final listaOrdenada = [..._estoque]..sort((a, b) => a.estoqueAtual.compareTo(b.estoqueAtual));
     final listaFiltrada = listaOrdenada.where(_atendeFiltro).toList();
     final categorias = _categoriasDisponiveis();
 
@@ -1244,18 +1303,10 @@ class _TelaControleEstoqueRapidoState extends State<TelaControleEstoqueRapido> {
 
 enum _StatusEstoque { esgotado, critico, saudavel }
 
-class TelaGestaoEquipe extends StatefulWidget { const TelaGestaoEquipe({super.key}); @override State<TelaGestaoEquipe> createState() => _TelaGestaoEquipeState(); }
-class _TelaGestaoEquipeState extends State<TelaGestaoEquipe> {
-  @override Widget build(BuildContext context) { return Padding(padding: const EdgeInsets.all(32.0), child: Column(children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Equipe e Acessos (RH)", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)), ElevatedButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaCadastroUsuario())).then((_) => setState((){})), icon: const Icon(Icons.person_add), label: const Text("NOVO FUNCIONÁRIO"))]), const SizedBox(height: 20), Expanded(child: ListView.builder(itemCount: listaUsuarios.length, itemBuilder: (context, index) { final u = listaUsuarios[index]; return Card(margin: const EdgeInsets.only(bottom: 10), child: ListTile(leading: CircleAvatar(backgroundColor: u.situacaoConta ? Colors.blue : Colors.grey, child: const Icon(Icons.person, color: Colors.white)), title: Text(u.nomeCompleto, style: TextStyle(fontWeight: FontWeight.bold, decoration: u.situacaoConta ? null : TextDecoration.lineThrough)), subtitle: Text("Login: ${u.idUsuario} | Cargo: ${u.cargo}"), trailing: Row(mainAxisSize: MainAxisSize.min, children: [const Text("Ativo: ", style: TextStyle(color: Colors.grey)), Switch(value: u.situacaoConta, activeThumbColor: Colors.green, onChanged: (bool valor) { if (u.idUsuario == 'ANDRE' && valor == false) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("O Admin Mestre não pode ser desativado!"), backgroundColor: Colors.red)); return; } setState(() => u.situacaoConta = valor); }), IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TelaCadastroUsuario(usuarioOriginal: u))).then((_) => setState((){})))]))); }))])); }
-}
-
-class TelaCadastroUsuario extends StatefulWidget { final Usuario? usuarioOriginal; const TelaCadastroUsuario({super.key, this.usuarioOriginal}); @override State<TelaCadastroUsuario> createState() => _TelaCadastroUsuarioState(); }
-class _TelaCadastroUsuarioState extends State<TelaCadastroUsuario> {
-  final _chaveForm = GlobalKey<FormState>(); final _idUsuario = TextEditingController(); final _nomeCompleto = TextEditingController(); final _senha = TextEditingController(); String _cargo = 'FUNCIONARIO';
-  @override void initState() { super.initState(); if (widget.usuarioOriginal != null) { final u = widget.usuarioOriginal!; _idUsuario.text = u.idUsuario; _nomeCompleto.text = u.nomeCompleto; _senha.text = u.senha; _cargo = u.cargo; } }
-  void _salvarUsuario() { if (_chaveForm.currentState!.validate()) { if (widget.usuarioOriginal != null) { Usuario u = widget.usuarioOriginal!; u.nomeCompleto = _nomeCompleto.text; u.senha = _senha.text; u.cargo = _cargo; } else { bool idJaExiste = listaUsuarios.any((u) => u.idUsuario == _idUsuario.text.toUpperCase()); if (idJaExiste) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Este Login já existe!"), backgroundColor: Colors.red)); return; } listaUsuarios.add(Usuario(idUsuario: _idUsuario.text.toUpperCase(), senha: _senha.text, nomeCompleto: _nomeCompleto.text, cargo: _cargo)); } Navigator.pop(context); } }
-  @override Widget build(BuildContext context) { bool ehEdicao = widget.usuarioOriginal != null; return Scaffold(appBar: AppBar(title: Text(ehEdicao ? "Editar Funcionário" : "Novo Funcionário")), body: Center(child: Container(constraints: const BoxConstraints(maxWidth: 600), padding: const EdgeInsets.all(32), child: Form(key: _chaveForm, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("Dados de Acesso", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)), const SizedBox(height: 15), TextFormField(controller: _nomeCompleto, autofocus: true, textInputAction: TextInputAction.next, inputFormatters: [PrimeiraLetraMaiusculaFormatter()], decoration: const InputDecoration(labelText: 'Nome Completo *', prefixIcon: Icon(Icons.badge)), validator: (v) => v!.isEmpty ? 'Obrigatório' : null), const SizedBox(height: 20), Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: TextFormField(controller: _idUsuario, enabled: !ehEdicao, inputFormatters: [UpperCaseTextFormatter()], decoration: const InputDecoration(labelText: 'Login (ID) *', hintText: 'Ex: MARCOS', prefixIcon: Icon(Icons.person)), validator: (v) => v!.isEmpty ? 'Obrigatório' : null)), const SizedBox(width: 15), Expanded(child: TextFormField(controller: _senha, obscureText: true, decoration: const InputDecoration(labelText: 'Senha Segura *', prefixIcon: Icon(Icons.lock)), validator: (v) => v!.isEmpty ? 'Obrigatório' : null))]), const SizedBox(height: 20), DropdownButtonFormField<String>(initialValue: _cargo, decoration: const InputDecoration(labelText: 'Cargo / Permissão', prefixIcon: Icon(Icons.security)), items: ['ADMIN', 'FUNCIONARIO'].map((c) => DropdownMenuItem(value: c, child: Text(c == 'ADMIN' ? 'Administrador' : 'Atendente'))).toList(), onChanged: (v) => setState(() => _cargo = v!)), const SizedBox(height: 40), Row(mainAxisAlignment: MainAxisAlignment.end, children: [OutlinedButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.cancel), label: const Text("CANCELAR")), const SizedBox(width: 15), ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue), onPressed: _salvarUsuario, icon: const Icon(Icons.save), label: const Text("SALVAR"))])])))))); }
-}
+class TelaGestaoEquipe extends StatefulWidget { const TelaGestaoEquipe({super.key}); @override State<TelaGestaoEquipe> createState()=>_TelaGestaoEquipeState(); }
+class _TelaGestaoEquipeState extends State<TelaGestaoEquipe> { final _service=GestaoUsuariosService(); late Future<List<UsuarioEquipe>> _usuarios; @override void initState(){super.initState();_usuarios=_service.listar();} void _recarregar()=>setState(()=>_usuarios=_service.listar()); @override Widget build(BuildContext c)=>Padding(padding:const EdgeInsets.all(32),child:Column(children:[Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[const Text('Equipe e Acessos (RH)',style:TextStyle(fontSize:24,fontWeight:FontWeight.bold)),ElevatedButton.icon(onPressed:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>const TelaCadastroUsuario())).then((_)=>_recarregar()),icon:const Icon(Icons.person_add),label:const Text('NOVO FUNCIONÁRIO'))]),const SizedBox(height:20),Expanded(child:FutureBuilder<List<UsuarioEquipe>>(future:_usuarios,builder:(c,s){if(s.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator());if(s.hasError)return Center(child:Text('Erro ao carregar equipe: ${s.error}'));final us=s.data??[];return ListView.builder(itemCount:us.length,itemBuilder:(c,i){final u=us[i];return ListTile(title:Text(u.nome),subtitle:Text('${u.email} | ${u.role}'),trailing:Row(mainAxisSize:MainAxisSize.min,children:[Switch(value:u.ativo,onChanged:(v)async{await _service.atualizar(u.id,{'nome':u.nome,'email':u.email,'role':u.role,'ativo':v});_recarregar();}),IconButton(icon:const Icon(Icons.edit),onPressed:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>TelaCadastroUsuario(usuario:u))).then((_)=>_recarregar()))]));});}))])); }
+class TelaCadastroUsuario extends StatefulWidget { final UsuarioEquipe? usuario; const TelaCadastroUsuario({super.key,this.usuario}); @override State<TelaCadastroUsuario> createState()=>_TelaCadastroUsuarioState(); }
+class _TelaCadastroUsuarioState extends State<TelaCadastroUsuario>{final _f=GlobalKey<FormState>();final _nome=TextEditingController(),_email=TextEditingController(),_senha=TextEditingController();String _role='ATENDENTE';@override void initState(){super.initState();final u=widget.usuario;if(u!=null){_nome.text=u.nome;_email.text=u.email;_role=u.role;}}Future<void> _salvar()async{if(!_f.currentState!.validate())return;final d={'nome':_nome.text,'email':_email.text,'role':_role,'ativo':widget.usuario?.ativo??true};if(_senha.text.isNotEmpty)d['senha']=_senha.text;if(widget.usuario==null){if(_senha.text.isEmpty)return;await GestaoUsuariosService().criar(d);}else{await GestaoUsuariosService().atualizar(widget.usuario!.id,d);}if(mounted)Navigator.pop(context);}@override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:Text(widget.usuario==null?'Novo Funcionário':'Editar Funcionário')),body:Form(key:_f,child:Column(children:[TextFormField(controller:_nome,validator:(v)=>v!.isEmpty?'Obrigatório':null),TextFormField(controller:_email,validator:(v)=>v!.isEmpty?'Obrigatório':null),TextFormField(controller:_senha,obscureText:true,decoration:const InputDecoration(labelText:'Nova senha (opcional)'),validator:(v)=>widget.usuario==null&&v!.isEmpty?'Obrigatório':null),DropdownButton<String>(value:_role,items:['ADMIN','GERENTE','ATENDENTE','COZINHA','CAIXA'].map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),onChanged:(v)=>setState(()=>_role=v!)),ElevatedButton(onPressed:_salvar,child:const Text('SALVAR'))])));}
 
 // =============================================================================
 // --- TELA DE GESTÃO DE PEDIDOS ---
@@ -1979,6 +2030,32 @@ class TelaGestaoProdutos extends StatefulWidget { const TelaGestaoProdutos({supe
 class _TelaGestaoProdutosState extends State<TelaGestaoProdutos> {
   final TextEditingController _buscaController = TextEditingController();
   String _categoriaFiltro = 'Todas';
+  bool _isLoading = true;
+  String? _erro;
+  List<Produto> _produtos = [];
+  final GestaoProdutosService _service = GestaoProdutosService();
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarProdutos();
+  }
+
+  Future<void> _carregarProdutos() async {
+    setState(() { _isLoading = true; _erro = null; });
+    try {
+      final res = await _service.listarProdutos();
+      if (mounted) {
+        setState(() { _produtos = res; _isLoading = false; });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() { _erro = e.toString(); _isLoading = false; });
+      }
+    }
+  }
+
+
 
   @override
   void dispose() {
@@ -2003,7 +2080,7 @@ class _TelaGestaoProdutosState extends State<TelaGestaoProdutos> {
 
   void _restaurarImagensAusentes() {
     var atualizados = 0;
-    for (final produto in cardapio) {
+    for (final produto in _produtos) {
       if (produto.imagemUrl.trim().isEmpty) {
         produto.imagemUrl = _imagemPadraoCategoria(produto.categoria);
         atualizados++;
@@ -2031,8 +2108,10 @@ class _TelaGestaoProdutosState extends State<TelaGestaoProdutos> {
 
   @override
   Widget build(BuildContext context) {
-    final categorias = cardapio.map((p) => p.categoria).toSet().toList()..sort();
-    final lista = cardapio.where(_atendeFiltros).toList();
+    final categorias = _produtos.map((p) => p.categoria).toSet().toList()..sort();
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
+    if (_erro != null) return Center(child: Text(_erro!));
+    final lista = _produtos.where(_atendeFiltros).toList();
 
     return Padding(
       padding: const EdgeInsets.all(32.0),

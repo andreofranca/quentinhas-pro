@@ -49,7 +49,7 @@ public class AuthService {
 
         return new AuthResponse(
                 jwtToken,
-                new UsuarioResponse(usuario.getId(), usuario.getNome(), usuario.getEmail(), usuario.getRole())
+                new UsuarioResponse(usuario.getId(), usuario.getNome(), usuario.getEmail(), usuario.getRole(), usuario.isAtivo())
         );
     }
 
@@ -68,7 +68,7 @@ public class AuthService {
 
         return new AuthResponse(
                 jwtToken,
-                new UsuarioResponse(usuario.getId(), usuario.getNome(), usuario.getEmail(), usuario.getRole())
+                new UsuarioResponse(usuario.getId(), usuario.getNome(), usuario.getEmail(), usuario.getRole(), usuario.isAtivo())
         );
     }
 }

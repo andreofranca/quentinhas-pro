@@ -32,6 +32,9 @@ public class Usuario implements UserDetails {
     @Column(nullable = false)
     private String role;
 
+    @Column(nullable = false)
+    private boolean ativo = true;
+
     @Column(name = "criado_em", updatable = false)
     private OffsetDateTime criadoEm = OffsetDateTime.now();
 
@@ -79,6 +82,8 @@ public class Usuario implements UserDetails {
     public void setRole(String role) {
         this.role = role;
     }
+    public boolean isAtivo() { return ativo; }
+    public void setAtivo(boolean ativo) { this.ativo = ativo; }
 
     public OffsetDateTime getCriadoEm() {
         return criadoEm;
@@ -117,6 +122,6 @@ public class Usuario implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return ativo;
     }
 }

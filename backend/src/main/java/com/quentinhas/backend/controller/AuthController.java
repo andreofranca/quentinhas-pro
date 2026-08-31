@@ -38,7 +38,8 @@ public class AuthController {
                         currentUser.getId(),
                         currentUser.getNome(),
                         currentUser.getEmail(),
-                        currentUser.getRole()
+                        currentUser.getRole(),
+                        currentUser.isAtivo()
                 )
         );
     }

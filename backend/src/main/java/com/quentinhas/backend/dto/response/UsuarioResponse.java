@@ -6,5 +6,6 @@ public record UsuarioResponse(
         UUID id,
         String nome,
         String email,
-        String role
+        String role,
+        boolean ativo
 ) {}
