@@ -8,12 +8,12 @@ import '../../services/cep_service.dart';
 import '../../services/pedido_service.dart';
 import '../../utils/whatsapp_message_builder.dart';
 
-class TelaCheckoutMock extends StatefulWidget {
+class TelaCheckout extends StatefulWidget {
   final List<ItemCarrinhoQuentinha> itens;
   final double total;
   final WhatsAppService whatsappService;
 
-  TelaCheckoutMock({
+  TelaCheckout({
     super.key,
     required this.itens,
     required this.total,
@@ -21,10 +21,10 @@ class TelaCheckoutMock extends StatefulWidget {
   }) : whatsappService = whatsappService ?? WhatsAppUrlLauncherService();
 
   @override
-  State<TelaCheckoutMock> createState() => _TelaCheckoutMockState();
+  State<TelaCheckout> createState() => _TelaCheckoutState();
 }
 
-class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
+class _TelaCheckoutState extends State<TelaCheckout> {
   final _formKey = GlobalKey<FormState>();
 
   final CaixaService _caixaService = CaixaService();
@@ -294,7 +294,7 @@ class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text('TAXA DE ENTREGA'),
-                          Text('R\$ 5,00'), // Mock para UX visual, o draft cobrará 5
+                          Text('R\$ 5,00'),
                         ],
                       ),
                     ],
@@ -390,7 +390,7 @@ class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
         cliente: ClienteContato(nome: _nomeController.text, telefoneWhatsApp: _whatsappController.text),
         tipoEntrega: _tipoEntrega,
         endereco: endereco,
-        taxaEntrega: _tipoEntrega == TipoEntrega.entrega ? 5.0 : 0.0, // Hardcoded conforme UI antiga
+        taxaEntrega: _tipoEntrega == TipoEntrega.entrega ? 5.0 : 0.0, 
         formaPagamento: _formaPagamento,
         valorRecebido: valorRecebido,
         observacoes: _observacoesController.text,
@@ -417,9 +417,9 @@ class _TelaCheckoutMockState extends State<TelaCheckoutMock> {
       final msgOperacional = WhatsAppMessageBuilder.buildOperacional(draft, numeroPedido: pedidoId.length >= 8 ? pedidoId.substring(0, 8) : pedidoId);
       final msgCliente = WhatsAppMessageBuilder.buildCliente(draft, numeroPedido: pedidoId.length >= 8 ? pedidoId.substring(0, 8) : pedidoId);
 
-      const whatsappCozinhaMock = '5511999999999';
+      const whatsappCozinha = '5511999999999';
 
-      await widget.whatsappService.enviarMensagem(telefone: whatsappCozinhaMock, mensagem: msgOperacional);
+      await widget.whatsappService.enviarMensagem(telefone: whatsappCozinha, mensagem: msgOperacional);
       await Future.delayed(const Duration(milliseconds: 600));
       await widget.whatsappService.enviarMensagem(telefone: draft.cliente!.telefoneWhatsApp, mensagem: msgCliente);
 

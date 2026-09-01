@@ -1650,16 +1650,16 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
                 final usuario = await GestaoUsuariosService().autenticarAdmin(loginCtrl.text, senhaCtrl.text);
                 if (usuario.role == 'ADMIN' || usuario.role == 'GERENTE') {
                   autorizado = true;
-                  if (Navigator.of(ctx).mounted) Navigator.pop(ctx);
+                  if (ctx.mounted) Navigator.pop(ctx);
                 } else {
-                  if (Navigator.of(ctx).mounted) {
+                  if (ctx.mounted) {
                     ScaffoldMessenger.of(ctx).showSnackBar(
                       const SnackBar(content: Text("Credenciais inválidas!"), backgroundColor: Colors.red),
                     );
                   }
                 }
               } catch (_) {
-                if (Navigator.of(ctx).mounted) {
+                if (ctx.mounted) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
                     const SnackBar(content: Text("Credenciais inválidas!"), backgroundColor: Colors.red),
                   );

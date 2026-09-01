@@ -23,10 +23,7 @@ class CatalogoService {
           tamanho: tq,
           preco: (t['preco'] as num).toDouble(),
           // O backend retorna um boolean 'disponivel', entao mapaeamos 
-          // true para null (infinito) para nao quebrar a UX local ainda,
-          // ou 1 vs 0. Vamos usar 999 para true e 0 para false pra encaixar
-          // no comportamento mockado atual que usa > 0 para disponivel.
-          quantidadeDisponivel: t['disponivel'] == true ? 999 : 0, 
+          quantidadeDisponivel: t['disponivel'] == true ? null : 0, 
           ofertaId: t['oferta_id'],
         );
       }).toList();

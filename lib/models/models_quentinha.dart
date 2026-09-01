@@ -30,7 +30,7 @@ extension TamanhoQuentinhaExtension on TamanhoQuentinha {
 class TamanhoOpcao {
   final TamanhoQuentinha tamanho;
   final double preco;
-  int? quantidadeDisponivel; // null indica infinito no mock
+  int? quantidadeDisponivel;
   final String? ofertaId; // Adicionado para integração com backend
 
   TamanhoOpcao({
@@ -43,7 +43,7 @@ class TamanhoOpcao {
   bool get disponivel => quantidadeDisponivel == null || quantidadeDisponivel! > 0;
 
   void consumir(int quantidade) {
-    if (quantidadeDisponivel == null) return; // Estoque infinito mockado
+    if (quantidadeDisponivel == null) return;
     if (quantidade <= 0) throw Exception('Domínio: Quantidade deve ser positiva.');
     if (quantidadeDisponivel! < quantidade) {
       throw Exception('Domínio: Estoque insuficiente para o tamanho ${tamanho.sigla}.');
@@ -69,7 +69,7 @@ class OfertaQuentinha {
 }
 
 class ItemCarrinhoQuentinha {
-  final String idItem; // Pode ser gerado com DateTime.now() para mock
+  final String idItem;
   final OfertaQuentinha oferta;
   final TamanhoOpcao tamanhoEscolhido;
   int quantidade;

@@ -53,7 +53,7 @@ void main() {
     // Tamanho P
     expect(tamanhos[0].tamanho, TamanhoQuentinha.P);
     expect(tamanhos[0].preco, 18.00);
-    expect(tamanhos[0].quantidadeDisponivel, 999);
+    expect(tamanhos[0].quantidadeDisponivel, null);
     expect(tamanhos[0].ofertaId, "8f8b9195-...");
     
     // Tamanho G

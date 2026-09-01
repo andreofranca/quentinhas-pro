@@ -6,7 +6,7 @@ import '../../models/models_quentinha.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/card_oferta_quentinha.dart';
 import '../../widgets/carrinho_lateral_widget.dart';
-import '../checkout/tela_checkout_mock.dart';
+import '../checkout/tela_checkout.dart';
 
 import '../../services/whatsapp_service.dart';
 
@@ -90,7 +90,7 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => TelaCheckoutMock(
+        builder: (context) => TelaCheckout(
           itens: _carrinho,
           total: totalAtual,
           whatsappService: widget.whatsappService,
