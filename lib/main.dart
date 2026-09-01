@@ -215,10 +215,6 @@ class Usuario {
   });
 }
 
-@Deprecated('Use GestaoUsuariosService; retained only by the legacy cancellation dialog.')
-final List<Usuario> listaUsuarios = [];
-
-
 // --- 2. BANCOS DE DADOS TEMPORÁRIOS ---
 
 // =============================================================================
@@ -1612,7 +1608,72 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
     }
   }
 
-  Future<bool> _solicitarAutorizacaoGerente() async { final loginCtrl = TextEditingController(); final senhaCtrl = TextEditingController(); bool autorizado = false; await showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(title: const Row(children: [Icon(Icons.security, color: Colors.red), SizedBox(width: 10), Text("Autorização de Gerente", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))]), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("O cancelamento de pedidos exige a assinatura de um Administrador."), const SizedBox(height: 15), TextField(controller: loginCtrl, inputFormatters: [UpperCaseTextFormatter()], decoration: const InputDecoration(labelText: "Usuário Admin", prefixIcon: Icon(Icons.person))), const SizedBox(height: 10), TextField(controller: senhaCtrl, obscureText: true, decoration: const InputDecoration(labelText: "Senha", prefixIcon: Icon(Icons.lock)))]), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("VOLTAR")), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () { bool adminValido = listaUsuarios.any((u) => u.idUsuario == loginCtrl.text && u.senha == senhaCtrl.text && u.cargo == 'ADMIN'); if (adminValido) { autorizado = true; Navigator.pop(ctx); } else { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Credenciais inválidas!"), backgroundColor: Colors.red)); } }, child: const Text("AUTORIZAR"))])); return autorizado; }
+  Future<bool> _solicitarAutorizacaoGerente() async {
+    final loginCtrl = TextEditingController();
+    final senhaCtrl = TextEditingController();
+    bool autorizado = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Row(children: [
+          Icon(Icons.security, color: Colors.red),
+          SizedBox(width: 10),
+          Text("Autorização de Gerente", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("O cancelamento de pedidos exige a assinatura de um Administrador ou Gerente."),
+            const SizedBox(height: 15),
+            TextField(
+              controller: loginCtrl,
+              inputFormatters: [UpperCaseTextFormatter()],
+              decoration: const InputDecoration(labelText: "Usuário Admin", prefixIcon: Icon(Icons.person)),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: senhaCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: "Senha", prefixIcon: Icon(Icons.lock)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("VOLTAR")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              try {
+                final usuario = await GestaoUsuariosService().autenticarAdmin(loginCtrl.text, senhaCtrl.text);
+                if (usuario.role == 'ADMIN' || usuario.role == 'GERENTE') {
+                  autorizado = true;
+                  if (Navigator.of(ctx).mounted) Navigator.pop(ctx);
+                } else {
+                  if (Navigator.of(ctx).mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(content: Text("Credenciais inválidas!"), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              } catch (_) {
+                if (Navigator.of(ctx).mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text("Credenciais inválidas!"), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            child: const Text("AUTORIZAR"),
+          ),
+        ],
+      ),
+    );
+
+    return autorizado;
+  }
   void _verDetalhesPedido(Pedido pedido) {
     bool isCancelado = pedido.statusLogistico == 'CANCELADO';
     Color corStatus = _obterCorLogistica(pedido.statusLogistico);

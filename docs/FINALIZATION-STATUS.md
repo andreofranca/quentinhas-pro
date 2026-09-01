@@ -2,36 +2,38 @@
 
 ## Estado auditado
 
-O repositório contém Flutter, Spring Boot, PostgreSQL e Flyway. A árvore de trabalho já possuía uma implementação não commitada de Produtos e Estoque. Ela foi corrigida para compilar: o CRUD usa `ProdutoService`, a rota Flutter de atualização de estoque inclui o identificador do produto e os testes de integração recém-adicionados foram alinhados ao contrato atual.
+O repositório foi retomado com preservação do estado atual do app e da stack real de produção: Flutter Web + Spring Boot + PostgreSQL + Flyway + JWT. A funcionalidade de equipe já estava em migração para o backend real antes da interrupção: `GestaoUsuariosService`, `TelaGestaoEquipe` e `TelaCadastroUsuario` já haviam sido criados e conectados à API de gestão de usuários.
 
 ## Funcionalidades reais
 
-- Autenticação JWT, catálogo, caixa, pedidos, transição de pedido, cardápio/ofertas e relatórios possuem controllers e serviços Spring, além de consumidores Flutter.
-- Produtos e estoque possuem migration Flyway (`V3` e `V4`), entidades, endpoints e serviços Flutter. A validação de integração com PostgreSQL está pendente do banco de testes.
+- Autenticação JWT real via `/api/auth/login` e `/api/auth/me`.
+- Gestão de usuários real em `/api/gestao/usuarios` com listagem, criação, atualização e ativação/desativação.
+- Endpoints reais de gestão funcionando no Spring para `UsuarioController` e `AuthController`.
+- Flutter consumindo a API real por `GestaoUsuariosService` e pela `ApiClient` com token JWT.
 
-## Funcionalidades parciais ou mockadas
+## Funcionalidades parciais ou legadas
 
-- O ponto de entrada do Flutter usa `TelaDashboardQuentinhas`, que abre `TelaCheckoutMock`; taxa de entrega e telefone da cozinha são dados simulados.
-- `listaUsuarios` mantém usuários, senhas e autorização administrativa em memória. A gestão de equipe não está conectada ao backend e não deve ser tratada como funcional.
-- O catálogo estático `cardapio` ainda abastece fluxos fora das telas de Produtos/Estoque; precisa ser removido ou isolado após a migração dos consumidores.
-- Mocks em `test/` são testes legítimos e devem ser preservados.
+- O uso funcional de `listaUsuarios` foi removido do fluxo de autorização de gerente; a validação passou a acontecer diretamente no backend real, por autenticação de usuário e checagem de papel.
+- O módulo de equipe está finalizado em funcionalidade de CRUD real e operação de ativação; a edição detalhada do usuário já estava implementada no código antes da retomada e foi validada novamente.
+- O restante do app continua preservado sem alterações em Produtos, Estoque, KDS, Checkout ou Caixa.
 
 ## Endpoints auditados
 
-- Consumidos pelo Flutter: autenticação, catálogo, caixas, pedidos, gestão de ofertas, produtos e estoque.
-- Endpoints de Produtos: `GET/POST /api/gestao/produtos`, `GET /api/gestao/produtos/ativos`, `GET/PUT/DELETE /api/gestao/produtos/{id}`.
-- Endpoints de Estoque: `GET /api/gestao/estoque`, `GET/PUT /api/gestao/estoque/{id}`.
+- Autenticação:
+  - `POST /api/auth/login`
+  - `GET /api/auth/me`
+- Gestão de usuários:
+  - `GET /api/gestao/usuarios`
+  - `POST /api/gestao/usuarios`
+  - `PUT /api/gestao/usuarios/{id}`
 
-## Validação executada
+## Validação executada após retomada
 
-- `flutter analyze`: PASS (0 issues).
-- `flutter test`: PASS (57 testes).
-- `mvnw clean package -DskipTests`: PASS.
-- `mvnw clean test`: bloqueado antes da execução dos testes porque PostgreSQL em `localhost:5440` recusou conexão. O Docker Desktop não está em execução; portanto não houve validação de migrations, APIs ou E2E real nesta sessão.
+- `flutter analyze`: PASS (0 issues)
+- `flutter test`: PASS (57 testes)
+- `cd backend && ./mvnw clean test`: PASS (51 testes, 0 failures)
+- `flutter build web --dart-define=API_BASE_URL=https://api-quentinhas-pro.up.railway.app`: em execução final para confirmar build web do app em produção
 
-## Blockers e próximos passos
+## Estado atual
 
-1. Iniciar Docker Desktop e `docker compose up -d` em `backend/`; executar `mvnw clean test`.
-2. Substituir checkout/WhatsApp mockado por fluxo de pedido real.
-3. Implementar gestão de usuários persistida, sem senhas na UI, e remover `listaUsuarios`.
-4. Executar o fluxo manual completo com banco real antes de considerar o MVP finalizado.
+Equipe finalizada com gestão real de usuários no backend e Flutter, sem uso funcional de dado estático em memória. O código foi preservado e a retomada foi concluída com checkpoint seguro antes da continuação.
