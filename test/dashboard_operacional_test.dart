@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanchonete_controle/main.dart';
+import 'package:lanchonete_controle/screens/dashboard/tela_dashboard_quentinhas.dart';
+import 'package:lanchonete_controle/models/dominio.dart';
 import 'package:lanchonete_controle/services/whatsapp_service.dart';
 import 'package:lanchonete_controle/services/api_client.dart';
 import 'package:http/http.dart' as http;
@@ -60,7 +62,7 @@ void main() {
       return http.Response('{}', 400);
     });
 
-    await tester.pumpWidget(AppLanchonete(whatsappService: fakeService));
+    await tester.pumpWidget(MaterialApp(home: TelaDashboardQuentinhas(whatsappService: fakeService, usuarioLogado: Usuario(idUsuario: '1', nomeCompleto: 'Admin', cargo: 'ADMIN', senha: '123', email: 'a@a.com', cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '', situacaoConta: true))));
     await tester.pumpAndSettle();
 
     final feijoadaFinder = find.ancestor(

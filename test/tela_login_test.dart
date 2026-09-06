@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanchonete_controle/main.dart';
+import 'package:lanchonete_controle/screens/shell_principal.dart';
 import 'package:lanchonete_controle/services/api_client.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -36,7 +37,7 @@ void main() {
     await tester.tap(find.text('ENTRAR NO ERP'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(TelaDashboard), findsOneWidget);
+    expect(find.byType(ShellPrincipal), findsOneWidget);
   });
 
   testWidgets('Fluxo Login Erro (401) - Deve exibir SnackBar com erro', (WidgetTester tester) async {
@@ -58,7 +59,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100)); // Finish request
     await tester.pumpAndSettle(); // Settle animation
 
-    expect(find.byType(TelaDashboard), findsNothing);
+    expect(find.byType(ShellPrincipal), findsNothing);
     expect(find.text('Credenciais invalidas'), findsOneWidget);
     expect(ApiClient.instance.isAuthenticated, isFalse);
   });
