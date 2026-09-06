@@ -220,22 +220,6 @@ class Usuario {
 // =============================================================================
 // 🍔 CARDÁPIO GIGANTE RESTAURADO (COM ESTOQUE)
 // =============================================================================
-List<Produto> cardapio = [
-  Produto(idProduto: "L01", nome: "Smash Burger Duplo", descricao: "Pão brioche selado na manteiga, 2 blends de 90g, muito queijo cheddar e molho especial da casa.", preco: 28.90, categoria: "Lanches", imagemUrl: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=600&auto=format&fit=crop", estoqueAtual: 20, estoqueMinimo: 10),
-  Produto(idProduto: "L02", nome: "X-Bacon Artesanal", descricao: "Hambúrguer 150g suculento, fatias de bacon crocante, queijo derretido, alface e tomate fresco.", preco: 32.00, categoria: "Lanches", imagemUrl: "https://images.unsplash.com/photo-1553979459-d2229ba7433b?q=80&w=600&auto=format&fit=crop", estoqueAtual: 15, estoqueMinimo: 8),
-  Produto(idProduto: "L03", nome: "Chicken Crispy", descricao: "Filé de frango empanado super crocante, maionese temperada, picles e alface americana.", preco: 26.50, categoria: "Lanches", imagemUrl: "https://images.unsplash.com/photo-1606755962773-d324e0a13086?q=80&w=600&auto=format&fit=crop", estoqueAtual: 5, estoqueMinimo: 8),
-  Produto(idProduto: "L04", nome: "X-Tudo Monstro", descricao: "O gigante da casa! 2 hambúrgueres, salsicha, bacon, ovo, presunto, queijo e salada completa.", preco: 38.90, categoria: "Lanches", imagemUrl: "https://images.unsplash.com/photo-1586816001966-79b736744398?q=80&w=600&auto=format&fit=crop", estoqueAtual: 10, estoqueMinimo: 10),
-  Produto(idProduto: "P01", nome: "Batata Suprema", descricao: "Porção generosa de batatas fritas crocantes com cobertura de cheddar cremoso e bacon em cubos.", preco: 24.90, categoria: "Porções", imagemUrl: "https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?q=80&w=600&auto=format&fit=crop", estoqueAtual: 30, estoqueMinimo: 15),
-  Produto(idProduto: "P02", nome: "Onion Rings", descricao: "Anéis de cebola empanados e fritos, acompanhados do nosso molho barbecue especial.", preco: 19.90, categoria: "Porções", imagemUrl: "https://images.unsplash.com/photo-1639024470081-ce036f0a6e38?q=80&w=600&auto=format&fit=crop", estoqueAtual: 25, estoqueMinimo: 12),
-  Produto(idProduto: "P03", nome: "Nuggets de Frango", descricao: "12 unidades de nuggets de frango super crocantes. Acompanha maionese verde da casa.", preco: 21.00, categoria: "Porções", imagemUrl: "https://images.unsplash.com/photo-1562967914-608f82629710?q=80&w=600&auto=format&fit=crop", estoqueAtual: 40, estoqueMinimo: 20),
-  Produto(idProduto: "B01", nome: "Coca-Cola Lata", descricao: "Refrigerante 350ml bem gelado.", preco: 6.00, categoria: "Bebidas", imagemUrl: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=600&auto=format&fit=crop", estoqueAtual: 100, estoqueMinimo: 30),
-  Produto(idProduto: "B02", nome: "Suco de Laranja Natural", descricao: "Copo de 500ml de suco de laranja feito na hora, sem açúcar e sem água.", preco: 9.50, categoria: "Bebidas", imagemUrl: "https://images.unsplash.com/photo-1600271886742-f049cd451bba?q=80&w=600&auto=format&fit=crop", estoqueAtual: 50, estoqueMinimo: 15),
-  Produto(idProduto: "B03", nome: "Milkshake de Morango", descricao: "Milkshake cremoso de morango batido com sorvete artesanal e chantilly.", preco: 16.90, categoria: "Bebidas", imagemUrl: "https://images.unsplash.com/photo-1572490122747-3968b75cc699?q=80&w=600&auto=format&fit=crop", estoqueAtual: 20, estoqueMinimo: 8),
-  Produto(idProduto: "B04", nome: "Milkshake de Ovomaltine", descricao: "O clássico! Sorvete de baunilha batido com muito Ovomaltine crocante.", preco: 18.90, categoria: "Bebidas", imagemUrl: "https://images.unsplash.com/photo-1553177595-4de2bb0842b9?q=80&w=600&auto=format&fit=crop", estoqueAtual: 20, estoqueMinimo: 8),
-  Produto(idProduto: "S01", nome: "Brownie com Sorvete", descricao: "Brownie de chocolate quente com uma bola de sorvete de baunilha e calda de chocolate.", preco: 18.00, categoria: "Sobremesas", imagemUrl: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?q=80&w=600&auto=format&fit=crop", estoqueAtual: 12, estoqueMinimo: 6),
-  Produto(idProduto: "S02", nome: "Taça de Sorvete Artesanal", descricao: "Três bolas de sorvete à sua escolha, com chantilly, castanhas e cereja.", preco: 15.50, categoria: "Sobremesas", imagemUrl: "https://images.unsplash.com/photo-1557142046-c704a3adf364?q=80&w=600&auto=format&fit=crop", estoqueAtual: 15, estoqueMinimo: 6),
-  Produto(idProduto: "S03", nome: "Torta de Chocolate", descricao: "Fatia generosa de torta mousse de chocolate meio amargo.", preco: 14.90, categoria: "Sobremesas", imagemUrl: "https://images.unsplash.com/photo-1606890737304-57a1ca8a5b62?q=80&w=600&auto=format&fit=crop", estoqueAtual: 8, estoqueMinimo: 5),
-];
 
 class AppLanchonete extends StatelessWidget {
   final WhatsAppService? whatsappService;
@@ -2197,7 +2181,7 @@ class _TelaGestaoProdutosState extends State<TelaGestaoProdutos> {
                     onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const TelaCadastroProduto()),
-                    ).then((_) => setState(() {})),
+                    ).then((_) => _carregarProdutos()),
                     icon: const Icon(Icons.add),
                     label: const Text('NOVO PRODUTO'),
                   ),
@@ -2274,7 +2258,7 @@ class _TelaGestaoProdutosState extends State<TelaGestaoProdutos> {
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => TelaCadastroProduto(produtoOriginal: p)),
-                      ).then((_) => setState(() {})),
+                      ).then((_) => _carregarProdutos()),
                     ),
                   ),
                 );
@@ -2349,41 +2333,47 @@ class _TelaCadastroProdutoState extends State<TelaCadastroProduto> {
     super.dispose();
   }
 
+  final GestaoProdutosService _service = GestaoProdutosService();
+  bool _salvando = false;
+
   void _usarImagemPadraoCategoria() {
     _imagemUrl.text = _imagemPadraoCategoria(_categoria);
   }
 
-  void _salvarProduto() {
+  Future<void> _salvarProduto() async {
     if (_chaveForm.currentState!.validate()) {
-      final precoLimpo = double.tryParse(_preco.text.replaceAll(',', '.')) ?? 0.0;
-      final estoqueLimpo = int.tryParse(_estoque.text) ?? 0;
-      final imagemFinal = _imagemUrl.text.trim().isEmpty
-          ? _imagemPadraoCategoria(_categoria)
-          : _imagemUrl.text.trim();
+      setState(() => _salvando = true);
+      try {
+        final precoLimpo = double.tryParse(_preco.text.replaceAll(',', '.')) ?? 0.0;
+        final estoqueLimpo = int.tryParse(_estoque.text) ?? 0;
+        final imagemFinal = _imagemUrl.text.trim().isEmpty
+            ? _imagemPadraoCategoria(_categoria)
+            : _imagemUrl.text.trim();
 
-      if (widget.produtoOriginal != null) {
-        final p = widget.produtoOriginal!;
-        p.nome = _nome.text;
-        p.descricao = _descricao.text;
-        p.preco = precoLimpo;
-        p.categoria = _categoria;
-        p.imagemUrl = imagemFinal;
-        p.estoqueAtual = estoqueLimpo;
-      } else {
-        final novoID = 'PROD-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
-        cardapio.add(
-          Produto(
-            idProduto: novoID,
-            nome: _nome.text,
-            descricao: _descricao.text,
-            preco: precoLimpo,
-            categoria: _categoria,
-            imagemUrl: imagemFinal,
-            estoqueAtual: estoqueLimpo,
-          ),
-        );
+        final data = {
+          'nome': _nome.text,
+          'descricao': _descricao.text,
+          'precoBase': precoLimpo,
+          'categoria': _categoria,
+          'imagemUrl': imagemFinal,
+          'estoqueAtual': estoqueLimpo,
+          'estoqueMinimo': 8,
+          'ativo': true,
+        };
+
+        if (widget.produtoOriginal != null) {
+          await _service.atualizarProduto(widget.produtoOriginal!.idProduto, data);
+        } else {
+          await _service.criarProduto(data);
+        }
+        if (mounted) Navigator.pop(context, true);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e')));
+        }
+      } finally {
+        if (mounted) setState(() => _salvando = false);
       }
-      Navigator.pop(context);
     }
   }
 
@@ -2528,9 +2518,9 @@ class _TelaCadastroProdutoState extends State<TelaCadastroProduto> {
                       const SizedBox(width: 15),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                        onPressed: _salvarProduto,
-                        icon: const Icon(Icons.save),
-                        label: const Text('SALVAR PRODUTO'),
+                        onPressed: _salvando ? null : _salvarProduto,
+                        icon: _salvando ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save),
+                        label: Text(_salvando ? 'SALVANDO...' : 'SALVAR PRODUTO'),
                       ),
                     ],
                   ),
