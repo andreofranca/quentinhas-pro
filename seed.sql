@@ -1,0 +1,4 @@
+UPDATE produtos SET nome = 'Quentinha de Frango Grelhado', descricao = 'Arroz, feijão, frango grelhado, salada e farofa.' WHERE nome = 'Marmita Teste';
+UPDATE produtos SET nome = 'Quentinha de Carne Assada', descricao = 'Arroz, feijão, carne assada com batatas, macarrão e farofa.' WHERE nome = 'Quentinha Mock';
+INSERT INTO produtos (id, nome, descricao, categoria, preco_base, ativo, estoque_atual, estoque_minimo) VALUES (gen_random_uuid(), 'Quentinha Vegetariana', 'Arroz integral, feijão, legumes salteados, purê de abóbora.', 'MARMITA', 22.00, true, 20, 5) ON CONFLICT DO NOTHING;
+INSERT INTO produtos (id, nome, descricao, categoria, preco_base, ativo, estoque_atual, estoque_minimo) VALUES (gen_random_uuid(), 'Quentinha de Linguiça Acebolada', 'Arroz, feijão, linguiça acebolada, fritas.', 'MARMITA', 23.00, true, 15, 5) ON CONFLICT DO NOTHING;

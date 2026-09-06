@@ -4,6 +4,7 @@ import 'package:lanchonete_controle/services/pedido_service.dart';
 import 'package:lanchonete_controle/screens/gestao/tela_gestao_cardapio.dart';
 import '../../main.dart';
 import '../../models/models_quentinha.dart';
+import '../../models/dominio.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/card_oferta_quentinha.dart';
 import '../../widgets/carrinho_lateral_widget.dart';
@@ -15,8 +16,9 @@ import '../../services/dashboard_pedido_service.dart';
 
 class TelaDashboardQuentinhas extends StatefulWidget {
   final WhatsAppService? whatsappService;
+  final Usuario? usuarioLogado;
 
-  const TelaDashboardQuentinhas({super.key, this.whatsappService});
+  const TelaDashboardQuentinhas({super.key, this.whatsappService, this.usuarioLogado});
 
   @override
   State<TelaDashboardQuentinhas> createState() => _TelaDashboardQuentinhasState();
@@ -243,58 +245,6 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
         ],
       ),
 
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: AppTheme.primaryColor),
-              child: Text('Menu Gerencial', style: TextStyle(color: Colors.white, fontSize: 24)),
-            ),
-            ListTile(
-              leading: const Icon(Icons.list_alt),
-              title: const Text('KDS / Cozinha'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaGestaoPedidos()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.inventory),
-              title: const Text('Estoque'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaControleEstoqueRapido()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.fastfood),
-              title: const Text('Produtos'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaGestaoProdutos()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.people),
-              title: const Text('Equipe e Acessos'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaGestaoEquipe()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.bar_chart),
-              title: const Text('Relatórios (Old Dashboard)'),
-              onTap: () {
-                Navigator.pop(context);
-                // Creating a dummy user for the old dashboard requirement
-                Navigator.push(context, MaterialPageRoute(builder: (_) => TelaDashboard(usuarioLogado: Usuario(idUsuario: '1', nomeCompleto: 'Admin', email: 'admin@quentinhas.com', cargo: 'ADMIN', senha: '123'))));
-              },
-            ),
-          ],
-        ),
-      ),
       body:
  Row(
         children: [
