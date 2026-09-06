@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/catalogo_service.dart';
 import 'package:lanchonete_controle/services/pedido_service.dart';
 import 'package:lanchonete_controle/screens/gestao/tela_gestao_cardapio.dart';
+import '../../main.dart';
 import '../../models/models_quentinha.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/card_oferta_quentinha.dart';
@@ -9,6 +10,8 @@ import '../../widgets/carrinho_lateral_widget.dart';
 import '../checkout/tela_checkout.dart';
 
 import '../../services/whatsapp_service.dart';
+import '../../services/dashboard_pedido_service.dart';
+
 
 class TelaDashboardQuentinhas extends StatefulWidget {
   final WhatsAppService? whatsappService;
@@ -24,12 +27,15 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
   final List<ItemCarrinhoQuentinha> _carrinho = [];
   
   late Future<List<OfertaQuentinha>> _futureCatalogo;
+  late Future<List<Pedido>> _futurePedidos;
+  final DashboardPedidoService _pedidoService = DashboardPedidoService();
   final CatalogoService _catalogoService = CatalogoService();
 
   @override
   void initState() {
     super.initState();
     _futureCatalogo = _catalogoService.buscarCatalogo();
+    _futurePedidos = _pedidoService.obterPedidos();
   }
 
   void _adicionarAoCarrinho(OfertaQuentinha oferta, TamanhoOpcao tamanho) {
@@ -236,7 +242,61 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
           const SizedBox(width: 16),
         ],
       ),
-      body: Row(
+
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(color: AppTheme.primaryColor),
+              child: Text('Menu Gerencial', style: TextStyle(color: Colors.white, fontSize: 24)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.list_alt),
+              title: const Text('KDS / Cozinha'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaGestaoPedidos()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.inventory),
+              title: const Text('Estoque'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaControleEstoqueRapido()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.fastfood),
+              title: const Text('Produtos'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaGestaoProdutos()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Equipe e Acessos'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaGestaoEquipe()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.bar_chart),
+              title: const Text('Relatórios (Old Dashboard)'),
+              onTap: () {
+                Navigator.pop(context);
+                // Creating a dummy user for the old dashboard requirement
+                Navigator.push(context, MaterialPageRoute(builder: (_) => TelaDashboard(usuarioLogado: Usuario(idUsuario: '1', nomeCompleto: 'Admin', email: 'admin@quentinhas.com', cargo: 'ADMIN', senha: '123'))));
+              },
+            ),
+          ],
+        ),
+      ),
+      body:
+ Row(
         children: [
           // Área Esquerda (Dashboard + Cardápio)
           Expanded(
@@ -349,14 +409,30 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
       color: Colors.white,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildKPIItem('PEDIDOS HOJE', '27', AppTheme.primaryColor),
-          _buildKPIItem('EM PRODUÇÃO', '8', AppTheme.secondaryColor),
-          _buildKPIItem('PRONTOS', '6', AppTheme.successColor),
-          _buildKPIItem('FATURAMENTO', 'R\$ 845,00', AppTheme.textDark),
-        ],
+      child: FutureBuilder<List<Pedido>>(
+        future: _futurePedidos,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final pedidos = snapshot.data ?? [];
+          final hoje = pedidos.where((p) => p.dataHora.day == DateTime.now().day).toList();
+          final emProducao = hoje.where((p) => p.statusLogistico == 'PREPARANDO').length;
+          final prontos = hoje.where((p) => p.statusLogistico == 'PRONTO').length;
+          final faturamento = hoje.fold(0.0, (sum, p) => sum + p.total);
+          
+          
+          
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildKPIItem('PEDIDOS HOJE', '${hoje.length}', AppTheme.primaryColor),
+              _buildKPIItem('EM PRODUÇÃO', '$emProducao', AppTheme.secondaryColor),
+              _buildKPIItem('PRONTOS', '$prontos', AppTheme.successColor),
+              _buildKPIItem('FATURAMENTO', 'R\$ ${faturamento.toStringAsFixed(2).replaceAll('.', ',')}', AppTheme.textDark),
+            ],
+          );
+        }
       ),
     );
   }
