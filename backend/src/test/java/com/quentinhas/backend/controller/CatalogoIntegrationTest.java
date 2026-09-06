@@ -22,10 +22,8 @@ import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("test")
-class CatalogoIntegrationTest {
+class CatalogoIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

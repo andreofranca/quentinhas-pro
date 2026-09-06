@@ -22,11 +22,9 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 
 import com.quentinhas.backend.model.Usuario;
 
-@SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("test")
 @Transactional
-class CaixaIntegrationTest {
+class CaixaIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

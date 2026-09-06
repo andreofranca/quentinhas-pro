@@ -9,9 +9,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@SpringBootTest
 @org.springframework.test.context.ActiveProfiles("test")
-class TransitionEngineIntegrationTest {
+class TransitionEngineIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

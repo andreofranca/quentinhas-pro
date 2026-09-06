@@ -14,7 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-public class CorsIntegrationTest {
+public class CorsIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

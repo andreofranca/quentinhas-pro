@@ -8,8 +8,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@SpringBootTest
+@ExtendWith(org.springframework.test.context.junit.jupiter.SpringExtension.class)
+@org.springframework.test.context.ContextConfiguration(initializers = org.springframework.boot.test.context.ConfigDataApplicationContextInitializer.class)
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
     "SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5440/quentinhas_test",

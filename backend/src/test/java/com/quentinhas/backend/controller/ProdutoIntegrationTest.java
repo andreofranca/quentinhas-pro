@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-public class ProdutoIntegrationTest {
+public class ProdutoIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

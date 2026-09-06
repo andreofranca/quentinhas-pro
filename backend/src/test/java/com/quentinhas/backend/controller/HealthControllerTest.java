@@ -12,10 +12,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
 @org.springframework.test.context.ActiveProfiles("test")
 @AutoConfigureMockMvc
-class HealthControllerTest {
+class HealthControllerTest extends com.quentinhas.backend.AbstractIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
