@@ -4,5 +4,6 @@ import java.util.UUID;
 
 public record PedidoResponse(
         UUID pedidoId,
+        String numeroComercial,
         String status
 ) {}

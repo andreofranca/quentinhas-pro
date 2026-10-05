@@ -71,7 +71,7 @@ class PedidoService {
       'total': draft.total,
       'itens': draft.itens.map((item) {
         return {
-          'ofertaId': item.tamanhoEscolhido.ofertaId,
+          'variacaoId': item.tamanhoEscolhido.ofertaId,
           'quantidade': item.quantidade,
           'precoUnitario': item.tamanhoEscolhido.preco,
           'subtotal': (item.quantidade * item.tamanhoEscolhido.preco),
@@ -90,7 +90,7 @@ class PedidoService {
     try {
       final response = await _api.post('/api/pedidos', body: payload);
       if (response != null && response is Map) {
-        return response['pedidoId'] ?? response['id'] ?? '';
+        return response['numeroComercial'] ?? response['pedidoId'] ?? response['id'] ?? '';
       }
       return '';
     } on ApiException catch (e) {
@@ -98,3 +98,4 @@ class PedidoService {
     }
   }
 }
+

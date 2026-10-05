@@ -26,7 +26,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-public class EstoqueIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTest {
+public class EstoqueIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTest { 
+    @Autowired 
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @Autowired
     private MockMvc mockMvc;
@@ -44,7 +46,7 @@ public class EstoqueIntegrationTest extends com.quentinhas.backend.AbstractInteg
     @BeforeEach
     void setUp() {
         ofertaRepository.deleteAll();
-        produtoRepository.deleteAll();
+        jdbcTemplate.execute("TRUNCATE TABLE produtos CASCADE");
         produto1 = new Produto();
         produto1.setNome("Produto Teste Estoque");
         produto1.setDescricao("Desc");
@@ -101,3 +103,4 @@ public class EstoqueIntegrationTest extends com.quentinhas.backend.AbstractInteg
                 .andExpect(jsonPath("$.estoqueMinimo").value(10));
     }
 }
+

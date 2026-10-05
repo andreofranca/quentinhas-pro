@@ -27,8 +27,8 @@ public class CaixaController {
 
     @GetMapping("/ativo")
     public ResponseEntity<CaixaResponse> getAtivo(@AuthenticationPrincipal Usuario currentUser) {
-        Caixa caixa = caixaRepository.findFirstByOperadorIdAndStatus(currentUser.getId(), "ABERTO")
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nenhum caixa aberto encontrado para o usurio atual"));
+        Caixa caixa = caixaRepository.findFirstByTerminalIdAndStatus("PDV-01", "ABERTO")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nenhum caixa aberto encontrado neste terminal"));
 
         return ResponseEntity.ok(new CaixaResponse(
                 caixa.getId(),
@@ -44,8 +44,8 @@ public class CaixaController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Saldo inicial invalido");
         }
 
-        if (caixaRepository.findFirstByOperadorIdAndStatus(currentUser.getId(), "ABERTO").isPresent()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "J existe um caixa aberto para este operador");
+        if (caixaRepository.findFirstByTerminalIdAndStatus("PDV-01", "ABERTO").isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "J existe um caixa aberto neste terminal");
         }
 
         Caixa novoCaixa = new Caixa();
@@ -70,7 +70,7 @@ public class CaixaController {
             @RequestBody @jakarta.validation.Valid com.quentinhas.backend.dto.request.CaixaFecharRequest request, 
             @AuthenticationPrincipal Usuario currentUser) {
         
-        Caixa caixa = caixaRepository.findFirstByOperadorIdAndStatus(currentUser.getId(), "ABERTO")
+        Caixa caixa = caixaRepository.findFirstByTerminalIdAndStatus("PDV-01", "ABERTO")
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nenhum caixa aberto encontrado para fechar"));
 
         java.math.BigDecimal totalPedidos = jdbcTemplate.queryForObject(
@@ -102,3 +102,4 @@ public class CaixaController {
         ));
     }
 }
+

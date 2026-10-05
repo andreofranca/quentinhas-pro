@@ -4,14 +4,17 @@ import 'package:lanchonete_controle/models/models_quentinha.dart';
 class CatalogoService {
   final ApiClient _api = ApiClient.instance;
 
-  Future<List<OfertaQuentinha>> buscarCatalogo() async {
+  Future<CatalogoCompleto> buscarCatalogo() async {
     final response = await _api.get('/api/catalogo');
     
-    if (response == null || !response.containsKey('produtos')) return [];
+    if (response == null) {
+        return CatalogoCompleto(ofertas: [], adicionais: []);
+    }
     
     List<dynamic> data = response['produtos'] ?? [];
+    List<dynamic> adicionaisData = response['adicionais'] ?? [];
     
-    return data.map((json) {
+    List<OfertaQuentinha> produtos = data.map((json) {
       List<dynamic> tamanhosJson = json['tamanhos'] ?? [];
       
       List<TamanhoOpcao> tamanhos = tamanhosJson.map((t) {
@@ -22,9 +25,8 @@ class CatalogoService {
         return TamanhoOpcao(
           tamanho: tq,
           preco: (t['preco'] as num).toDouble(),
-          // O backend retorna um boolean 'disponivel', entao mapaeamos 
           quantidadeDisponivel: t['disponivel'] == true ? null : 0, 
-          ofertaId: t['oferta_id'],
+          ofertaId: t['ofertaId'] ?? t['oferta_id'],
         );
       }).toList();
       
@@ -32,8 +34,24 @@ class CatalogoService {
         id: json['id'],
         nome: json['nome'],
         descricao: json['descricao'] ?? '',
+categoria: json['categoria'] ?? 'MARMITA',
+          estoqueAtual: json['estoqueAtual'] ?? 0,
         tamanhos: tamanhos,
       );
     }).toList();
+    
+    List<AdicionalQuentinha> adicionais = adicionaisData.map((json) {
+      return AdicionalQuentinha(
+        id: json['id'],
+        nome: json['nome'],
+        preco: (json['preco'] as num).toDouble(),
+      );
+    }).toList();
+    
+    return CatalogoCompleto(ofertas: produtos, adicionais: adicionais);
   }
 }
+
+
+
+

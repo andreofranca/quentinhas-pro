@@ -3,95 +3,161 @@ package com.quentinhas.backend.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.quentinhas.backend.dto.request.PedidoRequest;
+import com.quentinhas.backend.dto.request.ItemPedidoRequest;
 import com.quentinhas.backend.dto.response.PedidoResponse;
+import com.quentinhas.backend.dto.response.PedidoDetalheResponse;
 import com.quentinhas.backend.exception.BusinessRuleException;
 import com.quentinhas.backend.exception.IdempotencyException;
 import com.quentinhas.backend.exception.StockEsgotadoException;
-import org.springframework.dao.DataAccessException;
+import com.quentinhas.backend.model.*;
+import com.quentinhas.backend.repository.*;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.quentinhas.backend.dto.response.PedidoDetalheResponse;
 
 @Service
 public class PedidoService {
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper snakeCaseMapper;
+    private final ProdutoRepository produtoRepository;
+    private final ProdutoVariacaoRepository variacaoRepository;
+    private final AdicionalRepository adicionalRepository;
+    private final PedidoRepository pedidoRepository;
 
-    public PedidoService(JdbcTemplate jdbcTemplate) {
+    public PedidoService(JdbcTemplate jdbcTemplate, ProdutoRepository produtoRepository, 
+                         ProdutoVariacaoRepository variacaoRepository, AdicionalRepository adicionalRepository,
+                         PedidoRepository pedidoRepository) {
         this.jdbcTemplate = jdbcTemplate;
+        this.produtoRepository = produtoRepository;
+        this.variacaoRepository = variacaoRepository;
+        this.adicionalRepository = adicionalRepository;
+        this.pedidoRepository = pedidoRepository;
         this.snakeCaseMapper = new ObjectMapper()
                 .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
     }
 
+    @Transactional
     public PedidoResponse criarPedido(PedidoRequest request) {
-        validarRegras(request);
+        Integer isCaixaAberto = jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM caixas WHERE id = ? AND status = 'ABERTO'",
+            Integer.class, request.caixaId()
+        );
+        if (isCaixaAberto == null || isCaixaAberto == 0) {
+            throw new BusinessRuleException("Caixa " + request.caixaId() + " não está aberto.");
+        }
 
-        String payloadJson;
-        try {
-            payloadJson = snakeCaseMapper.writeValueAsString(request);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Erro ao serializar payload", e);
+        UUID clienteId = null;
+        if (request.cliente() != null && request.cliente().telefone() != null) {
+            clienteId = jdbcTemplate.queryForObject(
+                "INSERT INTO clientes (telefone, nome) VALUES (?, ?) ON CONFLICT (telefone) DO UPDATE SET nome = EXCLUDED.nome RETURNING id",
+                UUID.class, request.cliente().telefone(), request.cliente().nome()
+            );
         }
 
         try {
-            String resultJson = jdbcTemplate.queryForObject(
-                    "SELECT rpc_processar_pedido(cast(? as jsonb))",
-                    String.class,
-                    payloadJson
-            );
+            Pedido pedido = new Pedido();
+            pedido.setCaixaId(request.caixaId());
+            pedido.setClienteId(clienteId);
+            pedido.setModalidade(request.modalidade());
+            pedido.setTaxaEntrega(request.taxaEntrega() != null ? request.taxaEntrega() : BigDecimal.ZERO);
+            pedido.setEnderecoEntrega(request.enderecoEntrega());
+            pedido.setObservacoes(request.observacoes());
+            pedido.setProvedorEvento(request.provedorEvento());
+            pedido.setExternalEventId(request.externalEventId());
+            
+            String seqStr = jdbcTemplate.queryForObject("SELECT nextval('seq_pedido_comercial')", String.class);
+            pedido.setNumeroComercial("#QP-" + seqStr);
 
-            return snakeCaseMapper.readValue(resultJson, PedidoResponse.class);
+            BigDecimal totalPedido = pedido.getTaxaEntrega();
+
+            for (ItemPedidoRequest itemReq : request.itens()) {
+                ProdutoVariacao variacao = variacaoRepository.findById(itemReq.variacaoId())
+                    .orElseThrow(() -> new BusinessRuleException("Variação não encontrada: " + itemReq.variacaoId()));
+                
+                if (!variacao.isAtivo()) {
+                    throw new BusinessRuleException("Variação inativa: " + variacao.getTamanho());
+                }
+
+                Produto produto = produtoRepository.findByIdWithPessimisticLock(variacao.getProduto().getId())
+                    .orElseThrow(() -> new BusinessRuleException("Produto não encontrado."));
+
+                int qtd = itemReq.quantidade();
+                if (qtd <= 0) throw new BusinessRuleException("Quantidade inválida");
+
+                if (produto.getEstoqueAtual() < qtd) {
+                    throw new StockEsgotadoException("Estoque esgotado para " + produto.getNome());
+                }
+
+                produto.setEstoqueAtual(produto.getEstoqueAtual() - qtd);
+                produtoRepository.save(produto);
+
+                ItemPedido itemPedido = new ItemPedido();
+                itemPedido.setVariacao(variacao);
+                itemPedido.setQuantidade(qtd);
+                itemPedido.setPrecoUnitario(variacao.getPreco());
+                itemPedido.setPrecoUnitarioAplicado(variacao.getPreco());
+                itemPedido.setObservacoes(itemReq.observacoes());
+
+                BigDecimal subtotalItem = variacao.getPreco().multiply(BigDecimal.valueOf(qtd));
+
+                if (itemReq.adicionaisIds() != null) {
+                    for (UUID addId : itemReq.adicionaisIds()) {
+                        Adicional adicional = adicionalRepository.findById(addId)
+                            .orElseThrow(() -> new BusinessRuleException("Adicional não encontrado"));
+                        
+                        PedidoItemAdicional pia = new PedidoItemAdicional();
+                        pia.setAdicional(adicional);
+                        pia.setPrecoAplicado(adicional.getPreco());
+                        itemPedido.adicionarAdicional(pia);
+
+                        subtotalItem = subtotalItem.add(adicional.getPreco().multiply(BigDecimal.valueOf(qtd)));
+                    }
+                }
+
+                itemPedido.setSubtotal(subtotalItem);
+                itemPedido.setSubtotalAplicado(subtotalItem);
+                
+                pedido.adicionarItem(itemPedido);
+                totalPedido = totalPedido.add(subtotalItem);
+            }
+
+            pedido.setTotal(totalPedido);
+
+            if (request.pagamento() != null) {
+                Pagamento p = new Pagamento();
+                p.setFormaPagamento(request.pagamento().formaPagamento());
+                p.setValor(totalPedido); 
+                p.setValorRecebido(request.pagamento().valorRecebido());
+                
+                if (p.getValorRecebido() != null && p.getFormaPagamento().equals("DINHEIRO")) {
+                    p.setTroco(p.getValorRecebido().subtract(totalPedido));
+                    if (p.getTroco().compareTo(BigDecimal.ZERO) < 0) {
+                        throw new BusinessRuleException("Valor recebido insuficiente.");
+                    }
+                }
+                pedido.adicionarPagamento(p);
+            }
+
+            pedidoRepository.saveAndFlush(pedido);
+            return new PedidoResponse(pedido.getId(), pedido.getNumeroComercial(), "SUCCESS");
 
         } catch (DataIntegrityViolationException e) {
-            if (e.getMessage() != null && e.getMessage().contains("pedidos_provedor_evento_external_event_id_key")) {
-                throw new IdempotencyException("Pedido duplicado. Evento já processado.");
+            Throwable cause = e;
+            while (cause != null) {
+                if (cause.getMessage() != null && cause.getMessage().contains("external_event_id_key")) {
+                    throw new IdempotencyException("Pedido duplicado. Evento já processado.");
+                }
+                cause = cause.getCause();
             }
             throw e;
-        } catch (DataAccessException e) {
-            String rootMessage = e.getRootCause() != null ? e.getRootCause().getMessage() : e.getMessage();
-            if (rootMessage != null) {
-                if (rootMessage.contains("Estoque esgotado")) {
-                    throw new StockEsgotadoException(rootMessage);
-                }
-                if (rootMessage.contains("Caixa") || rootMessage.contains("Quantidade inv") || rootMessage.contains("Estoque")) {
-                    throw new BusinessRuleException(rootMessage);
-                }
-            }
-            throw e;
-        } catch (Exception e) {
-            throw new RuntimeException("Erro ao processar pedido", e);
-        }
-    }
-
-    private void validarRegras(PedidoRequest request) {
-        // Validação de troco
-        if (request.pagamento() != null && "DINHEIRO".equalsIgnoreCase(request.pagamento().formaPagamento())) {
-            BigDecimal recebido = request.pagamento().valorRecebido();
-            BigDecimal total = request.pagamento().valor();
-            BigDecimal troco = request.pagamento().troco();
-
-            if (recebido == null || recebido.compareTo(total) < 0) {
-                throw new IllegalArgumentException("Valor recebido insuficiente para pagamento em dinheiro.");
-            }
-            if (troco == null || recebido.subtract(total).compareTo(troco) != 0) {
-                throw new IllegalArgumentException("Cálculo de troco inválido.");
-            }
-        }
-        
-        // Validação de total (itens + taxa)
-        BigDecimal somaItens = request.itens().stream()
-                .map(i -> i.subtotal())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-                
-        if (somaItens.add(request.taxaEntrega()).compareTo(request.total()) != 0) {
-            throw new IllegalArgumentException("O total do pedido não corresponde à soma dos itens e taxa.");
         }
     }
 
@@ -113,16 +179,16 @@ public class PedidoService {
                     'registrado_em', p.criado_em,
                     'itens', COALESCE((
                          SELECT json_agg(json_build_object(
-                             'oferta_id', ip.oferta_id,
+                             'oferta_id', ip.variacao_id,
                              'nome_produto', pr.nome,
-                             'sigla_tamanho', o.tamanho,
+                             'sigla_tamanho', v.tamanho,
                              'quantidade', ip.quantidade,
-                             'preco_unitario', ip.preco_unitario,
-                             'subtotal', ip.subtotal
+                             'preco_unitario', ip.preco_unitario_aplicado,
+                             'subtotal', ip.subtotal_aplicado
                          ))
                          FROM itens_pedido ip
-                         LEFT JOIN ofertas o ON ip.oferta_id = o.id
-                         LEFT JOIN produtos pr ON o.produto_id = pr.id
+                         LEFT JOIN produto_variacoes v ON ip.variacao_id = v.id
+                         LEFT JOIN produtos pr ON v.produto_id = pr.id
                          WHERE ip.pedido_id = p.id
                     ), '[]'::json)
                 )

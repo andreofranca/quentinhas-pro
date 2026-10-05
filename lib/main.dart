@@ -108,13 +108,16 @@ class _TelaLoginState extends State<TelaLogin> {
   final _controleLogin = TextEditingController();
   final _controleSenha = TextEditingController();
   bool _carregando = false;
+  bool _ocultarSenha = true;
 
   void _tentarLogin() async {
     final email = _controleLogin.text.trim();
     final senha = _controleSenha.text;
 
     if (email.isEmpty || senha.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Preencha e-mail e senha."), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Por favor, preencha o e-mail e a senha."), backgroundColor: Colors.red)
+      );
       return;
     }
 
@@ -123,7 +126,7 @@ class _TelaLoginState extends State<TelaLogin> {
     try {
       final response = await ApiClient.instance.post('/api/auth/login', body: {
         'email': email,
-        'password': senha,
+        'senha': senha,
       });
 
       await ApiClient.instance.saveToken(response['token']);
@@ -144,7 +147,13 @@ class _TelaLoginState extends State<TelaLogin> {
     } catch (e) {
       if (!mounted) return;
       String erro = "Acesso Negado. Verifique e-mail e senha.";
-      if (e is ApiException) erro = e.message;
+      if (e is ApiException) {
+          if (e.statusCode == 400 || e.statusCode == 401 || e.statusCode == 403) {
+              erro = "Credenciais inválidas. Verifique seu e-mail e senha e tente novamente.";
+          } else {
+              erro = "Erro ao tentar conectar: ${e.statusCode} - ${e.message}";
+          }
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(erro), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _carregando = false);
@@ -154,21 +163,138 @@ class _TelaLoginState extends State<TelaLogin> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Acesso Restrito")),
+      backgroundColor: const Color(0xFFF4F6F8),
       body: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 400), padding: const EdgeInsets.all(40.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: SingleChildScrollView(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.admin_panel_settings, size: 80, color: corPrimaria), const SizedBox(height: 40),
-              TextField(controller: _controleLogin, autofocus: true, decoration: const InputDecoration(labelText: 'E-MAIL', prefixIcon: Icon(Icons.email))), const SizedBox(height: 20),
-              TextField(controller: _controleSenha, obscureText: true, onSubmitted: (_) => _tentarLogin(), decoration: const InputDecoration(labelText: 'SENHA', prefixIcon: Icon(Icons.lock))), const SizedBox(height: 30),
-              SizedBox(height: 55, child: ElevatedButton(onPressed: _carregando ? null : _tentarLogin, child: _carregando ? const CircularProgressIndicator(color: Colors.white) : const Text("ENTRAR NO ERP")))
-            ]
-          )
-        )
-      )
+              if (MediaQuery.of(context).size.width > 800)
+                Container(
+                  width: 400,
+                  height: 500,
+                  decoration: const BoxDecoration(
+                    color: corPrimaria,
+                    borderRadius: BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
+                  ),
+                  padding: const EdgeInsets.all(40.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.restaurant, size: 60, color: Colors.white),
+                      const SizedBox(height: 20),
+                      const Text(
+                        "Quentinhas Pro",
+                        style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        "Gestão inteligente para o seu negócio de alimentação.",
+                        style: TextStyle(color: Colors.white70, fontSize: 18),
+                      ),
+                      const SizedBox(height: 40),
+                      _buildDiferencial(Icons.receipt_long, "Pedidos rápidos"),
+                      _buildDiferencial(Icons.inventory, "Controle de estoque"),
+                      _buildDiferencial(Icons.kitchen, "Monitor de produção (KDS)"),
+                      _buildDiferencial(Icons.point_of_sale, "Gestão de caixa"),
+                    ],
+                  ),
+                ),
+              Container(
+                width: 400,
+                height: 500,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: MediaQuery.of(context).size.width > 800 
+                      ? const BorderRadius.only(topRight: Radius.circular(16), bottomRight: Radius.circular(16))
+                      : BorderRadius.circular(16),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, 10))
+                  ]
+                ),
+                padding: const EdgeInsets.all(40.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center, 
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (MediaQuery.of(context).size.width <= 800) ...[
+                      const Icon(Icons.restaurant, size: 48, color: corPrimaria),
+                      const SizedBox(height: 16),
+                      const Text(
+                        "Quentinhas Pro",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: corPrimaria, fontSize: 24, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                    const Text(
+                      "Entrar no sistema",
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 40),
+                    TextField(
+                      controller: _controleLogin, 
+                      autofocus: true, 
+                      textInputAction: TextInputAction.next,
+                      decoration: InputDecoration(
+                        labelText: 'E-mail', 
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      )
+                    ), 
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: _controleSenha, 
+                      obscureText: _ocultarSenha, 
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _tentarLogin(), 
+                      decoration: InputDecoration(
+                        labelText: 'Senha', 
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(_ocultarSenha ? Icons.visibility : Icons.visibility_off),
+                          onPressed: () => setState(() => _ocultarSenha = !_ocultarSenha),
+                        ),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      )
+                    ), 
+                    const SizedBox(height: 30),
+                    SizedBox(
+                      height: 50, 
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: corPrimaria,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
+                        ),
+                        onPressed: _carregando ? null : _tentarLogin, 
+                        child: _carregando 
+                          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                          : const Text("Entrar no sistema", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))
+                      )
+                    )
+                  ]
+                )
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDiferencial(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white70, size: 20),
+          const SizedBox(width: 12),
+          Text(text, style: const TextStyle(color: Colors.white70, fontSize: 16)),
+        ],
+      ),
     );
   }
 }
@@ -1184,8 +1310,8 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
     }
   }
 
-  Color _obterCorLogistica(String status) { switch (status) { case 'NOVO': return Colors.redAccent; case 'PREPARANDO': return Colors.amber; case 'DESPACHADO': return Colors.blueAccent; case 'ENTREGUE': return Colors.green; case 'CANCELADO': return Colors.grey; default: return Colors.black; } }
-  IconData _obterIconeStatus(String status) { switch (status) { case 'NOVO': return Icons.schedule; case 'PREPARANDO': return Icons.local_fire_department; case 'DESPACHADO': return Icons.local_shipping; case 'ENTREGUE': return Icons.check_circle; case 'CANCELADO': return Icons.cancel; default: return Icons.help; } }
+  Color _obterCorLogistica(String status) { switch (status) { case 'CONFIRMADO': return Colors.redAccent; case 'EM_PRODUCAO': return Colors.amber; case 'SAIU_ENTREGA': return Colors.blueAccent; case 'ENTREGUE': return Colors.green; case 'CANCELADO': return Colors.grey; default: return Colors.black; } }
+  IconData _obterIconeStatus(String status) { switch (status) { case 'CONFIRMADO': return Icons.schedule; case 'EM_PRODUCAO': return Icons.local_fire_department; case 'SAIU_ENTREGA': return Icons.local_shipping; case 'ENTREGUE': return Icons.check_circle; case 'CANCELADO': return Icons.cancel; default: return Icons.help; } }
 
   String _normalizarTelefoneWhatsApp(String telefone) {
     var telefoneLimpo = telefone.replaceAll(RegExp(r'[^\d]'), '');
@@ -1347,7 +1473,7 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
   }
 
   int _totalNotificacoesEsperadas(Pedido pedido) {
-    return pedido.statusLogistico == 'DESPACHADO' || pedido.statusLogistico == 'ENTREGUE'
+    return pedido.statusLogistico == 'SAIU_ENTREGA' || pedido.statusLogistico == 'ENTREGUE'
         ? 4
         : 2;
   }
@@ -1633,7 +1759,7 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
             const SizedBox(height: 6),
             _buildStatusNotificacao(pedido.tipoEntrega == 'RETIRADA' ? 'Retirada - cliente' : 'Despacho - cliente', pedido.notificacaoDespachoCliente),
             const SizedBox(height: 10),
-            if (pedido.statusLogistico == 'DESPACHADO' || pedido.statusLogistico == 'ENTREGUE')
+            if (pedido.statusLogistico == 'SAIU_ENTREGA' || pedido.statusLogistico == 'ENTREGUE')
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -1748,7 +1874,7 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
                           fontWeight: FontWeight.bold,
                           color: _obterCorLogistica(p.statusLogistico),
                         ),
-                        items: ['NOVO', 'PREPARANDO', 'DESPACHADO', 'ENTREGUE', 'CANCELADO']
+                        items: ['CONFIRMADO', 'EM_PRODUCAO', 'SAIU_ENTREGA', 'ENTREGUE', 'CANCELADO']
                             .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                             .toList(),
                         onChanged: (novoStatus) async {
@@ -1777,7 +1903,7 @@ class _TelaGestaoPedidosState extends State<TelaGestaoPedidos> {
                               return;
                             }
 
-                            if (novoStatus == 'DESPACHADO' && statusAnterior != 'DESPACHADO') {
+                            if (novoStatus == 'SAIU_ENTREGA' && statusAnterior != 'SAIU_ENTREGA') {
                               Future.delayed(const Duration(milliseconds: 500), () {
                                 _notificarDespachoAutomaticamente(p);
                               });
@@ -2431,3 +2557,7 @@ class UpperCaseTextFormatter extends TextInputFormatter {
     return TextEditingValue(text: n.text.toUpperCase(), selection: n.selection);
   }
 }
+
+
+
+

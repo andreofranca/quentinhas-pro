@@ -45,7 +45,6 @@ class PedidoIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTe
     void setUp() {
         jdbcTemplate.execute("TRUNCATE TABLE produtos CASCADE");
         jdbcTemplate.execute("TRUNCATE TABLE cardapios CASCADE");
-        jdbcTemplate.execute("TRUNCATE TABLE ofertas CASCADE");
         jdbcTemplate.execute("TRUNCATE TABLE usuarios CASCADE");
         jdbcTemplate.execute("TRUNCATE TABLE caixas CASCADE");
         jdbcTemplate.execute("TRUNCATE TABLE pedidos CASCADE");
@@ -59,39 +58,37 @@ class PedidoIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTe
         jdbcTemplate.update("INSERT INTO caixas (id, operador_id, terminal_id, status) VALUES (?, ?, 'TEST', 'ABERTO')", caixaId, userId);
 
         UUID produtoId = UUID.randomUUID();
-        jdbcTemplate.update("INSERT INTO produtos (id, nome, categoria, preco_base) VALUES (?, 'Teste', 'PRATO_PRINCIPAL', 0)", produtoId);
+        jdbcTemplate.update("INSERT INTO produtos (id, nome, categoria, preco_base, estoque_atual) VALUES (?, 'Teste', 'PRATO_PRINCIPAL', 0, 10)", produtoId);
         
         UUID cardapioId = UUID.randomUUID();
         jdbcTemplate.update("INSERT INTO cardapios (id, data_referencia, status) VALUES (?, CURRENT_DATE, 'ABERTO')", cardapioId);
 
         ofertaPId = UUID.randomUUID();
-        jdbcTemplate.update("INSERT INTO ofertas (id, cardapio_id, produto_id, tamanho, preco_vigente, limite_producao, reservado_atual) VALUES (?, ?, ?, 'PEQUENA', 15.00, 10, 0)", ofertaPId, cardapioId, produtoId);
+        jdbcTemplate.update("INSERT INTO produto_variacoes (id, produto_id, tamanho, preco, ativo) VALUES (?, ?, 'PEQUENA', 15.00, true)", ofertaPId, produtoId);
 
         ofertaGId = UUID.randomUUID();
-        // A oferta G tem apenas 1 de limite e 1 reservado (Esgotada)
-        jdbcTemplate.update("INSERT INTO ofertas (id, cardapio_id, produto_id, tamanho, preco_vigente, limite_producao, reservado_atual) VALUES (?, ?, ?, 'GRANDE', 25.00, 1, 1)", ofertaGId, cardapioId, produtoId);
+        jdbcTemplate.update("INSERT INTO produto_variacoes (id, produto_id, tamanho, preco, ativo) VALUES (?, ?, 'GRANDE', 25.00, true)", ofertaGId, produtoId);
     }
 
     private PedidoRequest buildPedidoRequest(String evtId) {
         return new PedidoRequest(
                 caixaId,
-                new ClienteRequest("João", "5511999999999"),
+                new ClienteRequest("Joao", "5511999999999"),
                 "RETIRADA",
                 BigDecimal.ZERO,
                 null,
                 "",
-                new BigDecimal("15.00"),
                 List.of(
-                        new ItemPedidoRequest(ofertaPId, 1, new BigDecimal("15.00"), new BigDecimal("15.00"))
+                        new ItemPedidoRequest(ofertaPId, 1, java.util.List.of(), "")
                 ),
-                new PagamentoRequest("PIX", new BigDecimal("15.00"), new BigDecimal("15.00"), BigDecimal.ZERO),
+                new PagamentoRequest("PIX", new java.math.BigDecimal("15.00"), null, null),
                 "APP",
                 evtId
         );
     }
 
     @Test
-    @DisplayName("Deve ser bloqueado sem autenticação")
+    @DisplayName("Deve ser bloqueado sem autenticacao")
     void testSemAutenticacao() throws Exception {
         PedidoRequest req = buildPedidoRequest("evt1");
         mockMvc.perform(post("/api/pedidos")
@@ -102,7 +99,7 @@ class PedidoIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTe
 
     @Test
     @WithMockUser
-    @DisplayName("Deve criar pedido simples validado com sucesso")
+    @DisplayName("Deve criar pedido simples validado com sucesso e deduzir estoque")
     void testPedidoSimples() throws Exception {
         PedidoRequest req = buildPedidoRequest("evt2");
         mockMvc.perform(post("/api/pedidos")
@@ -112,14 +109,14 @@ class PedidoIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTe
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.pedidoId").exists());
                 
-        // Garante que o reservado foi incrementado
-        Integer reservado = jdbcTemplate.queryForObject("SELECT reservado_atual FROM ofertas WHERE id = ?", Integer.class, ofertaPId);
-        org.junit.jupiter.api.Assertions.assertEquals(1, reservado);
+        // Garante que o estoque da proteina (Produto) foi deduzido (de 10 para 9)
+        Integer estoque = jdbcTemplate.queryForObject("SELECT estoque_atual FROM produtos LIMIT 1", Integer.class);
+        org.junit.jupiter.api.Assertions.assertEquals(9, estoque);
     }
 
     @Test
     @WithMockUser
-    @DisplayName("Deve rejeitar pedido com externalEventId duplicado (Idempotência)")
+    @DisplayName("Deve rejeitar pedido com externalEventId duplicado (Idempotencia)")
     void testIdempotencia() throws Exception {
         PedidoRequest req = buildPedidoRequest("evt-dup");
         
@@ -139,70 +136,89 @@ class PedidoIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTe
 
     @Test
     @WithMockUser
-    @DisplayName("Deve rejeitar 400 Bad Request por matemática errada (Total vs Itens)")
-    void testTotalInvalido() throws Exception {
-        PedidoRequest req = new PedidoRequest(caixaId, new ClienteRequest("A", "1"), "RETIRADA", BigDecimal.ZERO, null, "", new BigDecimal("20.00"), // Errado, subtotal é 15
-                List.of(new ItemPedidoRequest(ofertaPId, 1, new BigDecimal("15.00"), new BigDecimal("15.00"))),
-                null, "APP", "evt3");
+    @DisplayName("Deve testar a autoridade de preco do backend (ignorando qualquer valor externo)")
+    void testAutoridadeDePrecoBackend() throws Exception {
+        // Agora que o DTO nao aceita precos, a propria assinatura do teste garante que o cliente nao envia preco.
+        // Nos enviaremos apenas o ID da variacao, que custa 15.00 no banco.
+        PedidoRequest req = new PedidoRequest(caixaId, new ClienteRequest("A", "1"), "RETIRADA", BigDecimal.ZERO, null, "", 
+                List.of(new ItemPedidoRequest(ofertaPId, 2, java.util.List.of(), "")), // 2 itens de 15.00 = 30.00
+                new PagamentoRequest("PIX", new java.math.BigDecimal("30.00"), null, null), // Valor do pagamento validado contra o banco
+                "APP", "evt-autoridade");
 
-        mockMvc.perform(post("/api/pedidos")
+        // Realizamos a operacao
+        String response = mockMvc.perform(post("/api/pedidos")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail", containsString("O total do pedido não corresponde")));
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        // Verificamos no banco se o total foi salvo como 30.00
+        BigDecimal totalPersistido = jdbcTemplate.queryForObject("SELECT total FROM pedidos ORDER BY criado_em DESC LIMIT 1", BigDecimal.class);
+        org.junit.jupiter.api.Assertions.assertEquals(new java.math.BigDecimal("30.00"), totalPersistido);
     }
 
     @Test
     @WithMockUser
-    @DisplayName("Deve rejeitar 400 Bad Request por troco incorreto")
+    @DisplayName("Deve rejeitar pagamento insuficiente (validando a nova regra de troco)")
     void testTrocoIncorreto() throws Exception {
-        PedidoRequest req = new PedidoRequest(caixaId, new ClienteRequest("A", "1"), "RETIRADA", BigDecimal.ZERO, null, "", new BigDecimal("15.00"),
-                List.of(new ItemPedidoRequest(ofertaPId, 1, new BigDecimal("15.00"), new BigDecimal("15.00"))),
-                new PagamentoRequest("DINHEIRO", new BigDecimal("15.00"), new BigDecimal("20.00"), new BigDecimal("2.00")), // Troco errado
-                "APP", "evt4");
+        // Pedido de 1 item de 15.00. O cliente tenta pagar em DINHEIRO mas so entrega 10.00.
+        PedidoRequest req = new PedidoRequest(caixaId, new ClienteRequest("A", "1"), "RETIRADA", BigDecimal.ZERO, null, "", 
+                List.of(new ItemPedidoRequest(ofertaPId, 1, java.util.List.of(), "")),
+                new PagamentoRequest("DINHEIRO", new java.math.BigDecimal("15.00"), new java.math.BigDecimal("10.00"), java.math.BigDecimal.ZERO),
+                "APP", "evt-insuficiente");
 
         mockMvc.perform(post("/api/pedidos")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail", containsString("Cálculo de troco inválido")));
+                .andExpect(status().isUnprocessableEntity()) // mapeado a BusinessRuleException
+                .andExpect(jsonPath("$.detail", containsString("insuficiente")));
     }
     
     @Test
     @WithMockUser
-    @DisplayName("Deve permitir pagamento em DINHEIRO com matemática de troco correta")
+    @DisplayName("Deve permitir pagamento em DINHEIRO com valor recebido suficiente e backend calcula troco")
     void testTrocoCorreto() throws Exception {
-        PedidoRequest req = new PedidoRequest(caixaId, new ClienteRequest("A", "1"), "RETIRADA", BigDecimal.ZERO, null, "", new BigDecimal("15.00"),
-                List.of(new ItemPedidoRequest(ofertaPId, 1, new BigDecimal("15.00"), new BigDecimal("15.00"))),
-                new PagamentoRequest("DINHEIRO", new BigDecimal("15.00"), new BigDecimal("20.00"), new BigDecimal("5.00")), // Troco correto = 5
+        // Pedido de 15.00. Cliente entrega 20.00.
+        PedidoRequest req = new PedidoRequest(caixaId, new ClienteRequest("A", "1"), "RETIRADA", BigDecimal.ZERO, null, "", 
+                List.of(new ItemPedidoRequest(ofertaPId, 1, java.util.List.of(), "")),
+                new PagamentoRequest("DINHEIRO", new java.math.BigDecimal("15.00"), new java.math.BigDecimal("20.00"), java.math.BigDecimal.ZERO),
                 "APP", "evt-dinheiro");
 
         mockMvc.perform(post("/api/pedidos")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
+                
+        // Verificamos no banco se o troco foi persistido como 5.00 (20 recebido - 15 cobrado)
+        BigDecimal trocoPersistido = jdbcTemplate.queryForObject("SELECT troco FROM pagamentos ORDER BY id DESC LIMIT 1", BigDecimal.class);
+        org.junit.jupiter.api.Assertions.assertEquals(new java.math.BigDecimal("5.00"), trocoPersistido);
     }
 
     @Test
     @WithMockUser
-    @DisplayName("Deve rejeitar 409 Conflict se tentar comprar oferta sem estoque")
+    @DisplayName("Deve rejeitar 409 Conflict se tentar comprar oferta sem estoque (bloqueado pelo banco)")
     void testEstoqueEsgotado() throws Exception {
-        PedidoRequest req = new PedidoRequest(caixaId, new ClienteRequest("A", "1"), "RETIRADA", BigDecimal.ZERO, null, "", new BigDecimal("25.00"),
-                List.of(new ItemPedidoRequest(ofertaGId, 1, new BigDecimal("25.00"), new BigDecimal("25.00"))),
-                null, "APP", "evt5");
+        jdbcTemplate.update("UPDATE produtos SET estoque_atual = 0");
+
+        PedidoRequest req = new PedidoRequest(caixaId, new ClienteRequest("A", "1"), "RETIRADA", BigDecimal.ZERO, null, "", 
+                java.util.List.of(new ItemPedidoRequest(ofertaGId, 1, java.util.List.of(), "")), 
+                null, "APP", "evt-estoque-zero");
 
         mockMvc.perform(post("/api/pedidos")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail", containsString("Estoque esgotado")));
+                
+        jdbcTemplate.update("UPDATE produtos SET estoque_atual = 10");
     }
 
     @Test
     @WithMockUser
-    @DisplayName("Deve validar 400 Bad Request Payload inválido via @Valid")
+    @DisplayName("Deve validar 400 Bad Request Payload invalido via @Valid")
     void testPayloadInvalido() throws Exception {
-        PedidoRequest req = new PedidoRequest(caixaId, null, "", BigDecimal.ZERO, null, "", BigDecimal.ZERO, List.of(), null, "", "");
+        // DTO com nulls em campos obrigatorios
+        PedidoRequest req = new PedidoRequest(caixaId, null, "", BigDecimal.ZERO, null, "", java.util.List.of(), null, "", "");
         mockMvc.perform(post("/api/pedidos")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
@@ -226,14 +242,13 @@ class PedidoIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTe
 
     @Test
     @WithMockUser
-    @DisplayName("Deve validar 400 em transição inválida")
+    @DisplayName("Deve validar 400 em transicao invalida")
     void testTransicaoInvalida() throws Exception {
         String payload = "{\"status\": \"STATUS_INVENTADO\"}";
         UUID dummyId = UUID.randomUUID();
-        // Since the DB has CHECK constraint on status, it should throw exception mapped to 400 or 500. But since we use simple update and no order exists, it should be 400 (IllegalArgumentException).
         mockMvc.perform(post("/api/pedidos/" + dummyId + "/transicao")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(payload))
-                .andExpect(status().isBadRequest()); // from IllegalArgumentException
+                .andExpect(status().isBadRequest());
     }
 }

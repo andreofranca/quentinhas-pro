@@ -7,11 +7,13 @@ import '../../models/models_quentinha.dart';
 import '../../models/dominio.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/card_oferta_quentinha.dart';
+import '../../widgets/dialog_adicionais_widget.dart';
 import '../../widgets/carrinho_lateral_widget.dart';
 import '../checkout/tela_checkout.dart';
 
 import '../../services/whatsapp_service.dart';
 import '../../services/dashboard_pedido_service.dart';
+
 
 
 class TelaDashboardQuentinhas extends StatefulWidget {
@@ -28,24 +30,48 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
   // Estado Local: Carrinho
   final List<ItemCarrinhoQuentinha> _carrinho = [];
   
-  late Future<List<OfertaQuentinha>> _futureCatalogo;
+  late Future<CatalogoCompleto> _futureCatalogo;
   late Future<List<Pedido>> _futurePedidos;
   final DashboardPedidoService _pedidoService = DashboardPedidoService();
   final CatalogoService _catalogoService = CatalogoService();
+  List<AdicionalQuentinha> _adicionaisCarregados = [];
 
   @override
   void initState() {
     super.initState();
-    _futureCatalogo = _catalogoService.buscarCatalogo();
+    _futureCatalogo = _catalogoService.buscarCatalogo().then((c) {
+      _adicionaisCarregados = c.adicionais;
+      return c;
+    });
     _futurePedidos = _pedidoService.obterPedidos();
   }
 
-  void _adicionarAoCarrinho(OfertaQuentinha oferta, TamanhoOpcao tamanho) {
+  void _adicionarAoCarrinho(OfertaQuentinha oferta, TamanhoOpcao tamanho) async {
+    List<AdicionalQuentinha> adicionaisSelecionados = [];
+
+    if (_adicionaisCarregados.isNotEmpty && oferta.categoria != 'BEBIDA') {
+      final List<AdicionalQuentinha>? result = await showDialog<List<AdicionalQuentinha>>(
+        context: context,
+        builder: (context) => DialogAdicionaisWidget(
+          adicionaisDisponiveis: _adicionaisCarregados,
+        ),
+      );
+      if (result != null) {
+        adicionaisSelecionados = result;
+      }
+    }
+
+    if (!mounted) return;
+
     setState(() {
-      // Verifica se já existe o mesmo prato com o mesmo tamanho
-      final index = _carrinho.indexWhere((item) =>
-          item.oferta.id == oferta.id &&
-          item.tamanhoEscolhido.tamanho == tamanho.tamanho);
+      final index = _carrinho.indexWhere((item) {
+        if (item.oferta.id != oferta.id || item.tamanhoEscolhido.tamanho != tamanho.tamanho) return false;
+        if (item.adicionais.length != adicionaisSelecionados.length) return false;
+        for (var a in adicionaisSelecionados) {
+          if (!item.adicionais.any((ia) => ia.id == a.id)) return false;
+        }
+        return true;
+      });
 
       if (index >= 0) {
         _carrinho[index].quantidade++;
@@ -55,14 +81,15 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
           oferta: oferta,
           tamanhoEscolhido: tamanho,
           quantidade: 1,
+          adicionais: adicionaisSelecionados,
         ));
       }
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${oferta.nome} (${tamanho.tamanho.sigla}) adicionado!'),
-        backgroundColor: AppTheme.successColor,
+        content: Text(' () adicionado!'),
+        backgroundColor: AppTheme.success,
         duration: const Duration(milliseconds: 800),
       ),
     );
@@ -99,23 +126,23 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
       context,
       MaterialPageRoute(
         builder: (context) => TelaCheckout(
-          itens: _carrinho,
+          itens: List.from(_carrinho),
           total: totalAtual,
-          whatsappService: widget.whatsappService,
+          whatsappService: widget.whatsappService ?? WhatsAppUrlLauncherService(),
         ),
       ),
     );
 
-    // Se result for true, o pedido foi confirmado com sucesso.
     if (result == true) {
       setState(() {
         _carrinho.clear();
+        _futurePedidos = _pedidoService.obterPedidos();
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Pedido enviado para produção com sucesso!'),
-            backgroundColor: AppTheme.successColor,
+            backgroundColor: AppTheme.success,
             duration: Duration(seconds: 2),
           ),
         );
@@ -129,16 +156,16 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Fechar Caixa'),
+        title: const Text('Fechar Caixa Atual'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Informe o saldo atual em dinheiro na gaveta:'),
+            const Text('Tem certeza que deseja fechar o caixa do PDV Atual? Informe o saldo final:'),
             const SizedBox(height: 10),
             TextField(
               controller: saldoController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Saldo Informado (R\$)'),
+              decoration: const InputDecoration(labelText: 'Saldo Final (R\$)'),
             ),
           ],
         ),
@@ -158,35 +185,26 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
                     context: context,
                     builder: (context) => AlertDialog(
                       title: const Text('Caixa Fechado'),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Faturamento do Sistema: R\$ ${res['faturamentoSistema']}'),
-                          Text('Saldo Informado: R\$ ${res['saldoInformado']}'),
-                          Text('Diferença: R\$ ${res['diferenca']}'),
-                        ],
-                      ),
+                      content: Text('O caixa foi fechado. Quebra: R\$ '),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
                           child: const Text('OK'),
                         )
-                      ],
+                      ]
                     )
                   );
                 }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(e.toString().replaceAll('Exception: ', '')),
-                    backgroundColor: Colors.red.shade800,
+                    content: Text('Erro ao fechar caixa: '),
+                    backgroundColor: Colors.red,
                   ));
                 }
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('FECHAR CAIXA', style: TextStyle(color: Colors.white)),
+            child: const Text('CONFIRMAR FECHAMENTO'),
           ),
         ],
       ),
@@ -195,29 +213,22 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
 
   @override
   Widget build(BuildContext context) {
-    // Breakpoint simples para responsividade
-    final isDesktopOrTablet = MediaQuery.of(context).size.width > 800;
+    bool isDesktopOrTablet = MediaQuery.of(context).size.width >= 800;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('QUENTINHAS PRO', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+      backgroundColor: AppTheme.background,
+      appBar: isDesktopOrTablet ? null : AppBar(
+        title: const Text('Novo Pedido', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.menu_book),
-            tooltip: 'Gestão de Cardápio',
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaGestaoCardapio()));
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.point_of_sale),
+            icon: const Icon(Icons.point_of_sale, color: Colors.orange),
             tooltip: 'Fechar Caixa',
             onPressed: _mostrarModalFechamentoCaixa,
           ),
           if (!isDesktopOrTablet)
             IconButton(
               icon: Badge(
-                label: Text('${_carrinho.length}'),
+                label: Text(''),
                 isLabelVisible: _carrinho.isNotEmpty,
                 child: const Icon(Icons.shopping_bag_outlined),
               ),
@@ -244,9 +255,7 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
           const SizedBox(width: 16),
         ],
       ),
-
-      body:
- Row(
+      body: Row(
         children: [
           // Área Esquerda (Dashboard + Cardápio)
           Expanded(
@@ -263,63 +272,84 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: AppTheme.textMuted,
+                          color: AppTheme.textSecondary,
                           letterSpacing: 1.5,
                         ),
                       ),
                       const SizedBox(height: 16),
                       // Grid para desktop, Lista para mobile
-                      FutureBuilder<List<OfertaQuentinha>>(
+                      FutureBuilder<CatalogoCompleto>(
                         future: _futureCatalogo,
                         builder: (context, snapshot) {
                           if (snapshot.connectionState == ConnectionState.waiting) {
                             return const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()));
                           }
                           if (snapshot.hasError) {
-                            return Center(child: Padding(padding: EdgeInsets.all(40), child: Text('Erro ao carregar cardápio. \n${snapshot.error}', textAlign: TextAlign.center, style: TextStyle(color: Colors.red))));
+                            return Center(child: Padding(padding: EdgeInsets.all(40), child: Text('Erro ao carregar cardápio. \n', textAlign: TextAlign.center, style: TextStyle(color: Colors.red))));
                           }
                           
-                          final catalogo = snapshot.data ?? [];
+                          final catalogoCompleto = snapshot.data;
+                          final catalogo = catalogoCompleto?.ofertas ?? [];
                           if (catalogo.isEmpty) {
                             return const Center(child: Padding(padding: EdgeInsets.all(40), child: Text('Nenhuma oferta disponível hoje.', style: TextStyle(color: Colors.grey))));
                           }
 
-                          if (isDesktopOrTablet) {
-                            return GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 16,
-                                childAspectRatio: 1.5, // Ajuste para altura dos cards
-                              ),
-                              itemCount: catalogo.length,
-                              itemBuilder: (context, index) {
-                                return CardOfertaQuentinha(
-                                  oferta: catalogo[index],
-                                  onAdicionar: (TamanhoOpcao tamanho) =>
-                                      _adicionarAoCarrinho(catalogo[index], tamanho),
-                                );
-                              },
-                            );
-                          } else {
-                            return ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: catalogo.length,
-                              itemBuilder: (context, index) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 16.0),
-                                  child: CardOfertaQuentinha(
-                                    oferta: catalogo[index],
-                                    onAdicionar: (TamanhoOpcao tamanho) =>
-                                        _adicionarAoCarrinho(catalogo[index], tamanho),
-                                  ),
-                                );
-                              },
-                            );
+                          Map<String, List<OfertaQuentinha>> porCategoria = {};
+                          for (var oferta in catalogo) {
+                            if (!porCategoria.containsKey(oferta.categoria)) {
+                              porCategoria[oferta.categoria] = [];
+                            }
+                            porCategoria[oferta.categoria]!.add(oferta);
                           }
+
+                          List<Widget> sections = [];
+                          for (var categoria in porCategoria.keys) {
+                            sections.add(
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                                child: Text(categoria, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                              ),
+                            );
+                            final itensCategoria = porCategoria[categoria]!;
+
+                            if (isDesktopOrTablet) {
+                              sections.add(GridView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 16,
+                                  mainAxisSpacing: 16,
+                                  childAspectRatio: 1.5,
+                                ),
+                                itemCount: itensCategoria.length,
+                                itemBuilder: (context, index) {
+                                  return CardOfertaQuentinha(
+                                    oferta: itensCategoria[index],
+                                    onAdicionar: (TamanhoOpcao tamanho) =>
+                                        _adicionarAoCarrinho(itensCategoria[index], tamanho),
+                                  );
+                                },
+                              ));
+                            } else {
+                              sections.add(ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: itensCategoria.length,
+                                itemBuilder: (context, index) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 16.0),
+                                    child: CardOfertaQuentinha(
+                                      oferta: itensCategoria[index],
+                                      onAdicionar: (TamanhoOpcao tamanho) =>
+                                          _adicionarAoCarrinho(itensCategoria[index], tamanho),
+                                    ),
+                                  );
+                                },
+                              ));
+                            }
+                          }
+                          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: sections);
                         },
                       ),
                     ],
@@ -367,19 +397,17 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
           }
           final pedidos = snapshot.data ?? [];
           final hoje = pedidos.where((p) => p.dataHora.day == DateTime.now().day).toList();
-          final emProducao = hoje.where((p) => p.statusLogistico == 'PREPARANDO').length;
+          final emProducao = hoje.where((p) => p.statusLogistico == 'EM_PRODUCAO').length;
           final prontos = hoje.where((p) => p.statusLogistico == 'PRONTO').length;
           final faturamento = hoje.fold(0.0, (sum, p) => sum + p.total);
-          
-          
           
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildKPIItem('PEDIDOS HOJE', '${hoje.length}', AppTheme.primaryColor),
-              _buildKPIItem('EM PRODUÇÃO', '$emProducao', AppTheme.secondaryColor),
-              _buildKPIItem('PRONTOS', '$prontos', AppTheme.successColor),
-              _buildKPIItem('FATURAMENTO', 'R\$ ${faturamento.toStringAsFixed(2).replaceAll('.', ',')}', AppTheme.textDark),
+              _buildKPIItem('PEDIDOS HOJE', '', AppTheme.primary),
+              _buildKPIItem('EM PRODUÇÃO', '', AppTheme.warning),
+              _buildKPIItem('PRONTOS', '', AppTheme.success),
+              _buildKPIItem('FATURAMENTO', 'R\$ ', AppTheme.textPrimary),
             ],
           );
         }
@@ -395,7 +423,7 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
           style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: AppTheme.textMuted,
+            color: AppTheme.textSecondary,
           ),
         ),
         const SizedBox(height: 4),
@@ -411,4 +439,6 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
     );
   }
 }
+
+
 

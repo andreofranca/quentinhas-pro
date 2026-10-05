@@ -10,4 +10,6 @@ import java.util.UUID;
 @Repository
 public interface CaixaRepository extends JpaRepository<Caixa, UUID> {
     Optional<Caixa> findFirstByOperadorIdAndStatus(UUID operadorId, String status);
+    Optional<Caixa> findFirstByTerminalIdAndStatus(String terminalId, String status);
 }
+

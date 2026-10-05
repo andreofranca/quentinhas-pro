@@ -54,7 +54,7 @@ const int tamanhoMinimoSenha = 3;
 // ============================================================================
 const List<String> categoriasMenu = ['Lanches', 'Porções', 'Bebidas', 'Sobremesas'];
 const List<String> formasPagamento = ['PIX', 'CRÉDITO', 'DÉBITO', 'DINHEIRO'];
-const List<String> statusPedidos = ['NOVO', 'PREPARANDO', 'DESPACHADO', 'ENTREGUE', 'CANCELADO'];
+const List<String> statusPedidos = ['CONFIRMADO', 'EM_PRODUCAO', 'PRONTO', 'SAIU_ENTREGA', 'ENTREGUE', 'CANCELADO'];
 const List<String> tiposEntrega = ['ENTREGA', 'RETIRADA'];
 const List<String> cargosUsuario = ['FUNCIONARIO', 'ADMIN'];
 
@@ -85,3 +85,4 @@ const String msgEnviandoImpressora = "Enviando comando para a impressora térmic
 const String msgErroWhatsapp = "WhatsApp bloqueado";
 const String msgErroApiBuscaCep = "Erro ao buscar CEP. Tente novamente.";
 const String msgCepNaoEncontrado = "CEP não encontrado.";
+

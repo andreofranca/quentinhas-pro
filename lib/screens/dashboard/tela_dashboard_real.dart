@@ -43,7 +43,7 @@ class _TelaDashboardRealState extends State<TelaDashboardReal> {
 
           final pedidos = snapshot.data ?? [];
           final hoje = pedidos.where((p) => p.dataHora.day == DateTime.now().day).toList();
-          final emProducao = hoje.where((p) => p.statusLogistico == 'PREPARANDO').length;
+          final emProducao = hoje.where((p) => p.statusLogistico == 'EM_PRODUCAO').length;
           final prontos = hoje.where((p) => p.statusLogistico == 'PRONTO').length;
           final faturamento = hoje.fold(0.0, (sum, p) => sum + p.total);
           final ticketMedio = hoje.isNotEmpty ? faturamento / hoje.length : 0.0;
@@ -55,21 +55,21 @@ class _TelaDashboardRealState extends State<TelaDashboardReal> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('DASHBOARD OPERACIONAL', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.primaryColor)),
+                  const Text('DASHBOARD OPERACIONAL', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.primary)),
                   const SizedBox(height: 24),
                   Wrap(
                     spacing: 16,
                     runSpacing: 16,
                     children: [
-                      _buildKPICard('Pedidos Hoje', '${hoje.length}', Icons.shopping_bag, AppTheme.primaryColor),
-                      _buildKPICard('Faturamento', 'R\$ ${faturamento.toStringAsFixed(2).replaceAll('.', ',')}', Icons.attach_money, AppTheme.successColor),
+                      _buildKPICard('Pedidos Hoje', '${hoje.length}', Icons.shopping_bag, AppTheme.primary),
+                      _buildKPICard('Faturamento', 'R\$ ${faturamento.toStringAsFixed(2).replaceAll('.', ',')}', Icons.attach_money, AppTheme.success),
                       _buildKPICard('Ticket Médio', 'R\$ ${ticketMedio.toStringAsFixed(2).replaceAll('.', ',')}', Icons.receipt, Colors.purple),
-                      _buildKPICard('Em Preparação', '$emProducao', Icons.restaurant, AppTheme.secondaryColor),
-                      _buildKPICard('Prontos', '$prontos', Icons.check_circle, AppTheme.successColor),
+                      _buildKPICard('Em Preparação', '$emProducao', Icons.restaurant, AppTheme.warning),
+                      _buildKPICard('Prontos', '$prontos', Icons.check_circle, AppTheme.success),
                     ],
                   ),
                   const SizedBox(height: 32),
-                  const Text('PEDIDOS RECENTES', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primaryColor)),
+                  const Text('PEDIDOS RECENTES', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primary)),
                   const SizedBox(height: 16),
                   _buildPedidosRecentes(hoje),
                 ],
@@ -144,10 +144,12 @@ class _TelaDashboardRealState extends State<TelaDashboardReal> {
 
   Color _getCorStatus(String status) {
     switch (status) {
-      case 'NOVO': return Colors.blue;
-      case 'PREPARANDO': return AppTheme.secondaryColor;
-      case 'PRONTO': return AppTheme.successColor;
+      case 'CONFIRMADO': return Colors.blue;
+      case 'EM_PRODUCAO': return AppTheme.warning;
+      case 'PRONTO': return AppTheme.success;
       default: return Colors.grey;
     }
   }
 }
+
+

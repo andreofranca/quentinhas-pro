@@ -8,5 +8,7 @@ public record ProdutoCatalogoResponse(
         String nome,
         String descricao,
         String categoria,
+        Integer estoqueAtual,
         List<TamanhoCatalogoResponse> tamanhos
 ) {}
+

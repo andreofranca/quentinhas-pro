@@ -105,7 +105,7 @@ class _TelaCheckoutState extends State<TelaCheckout> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FINALIZAR DRAFT DE PEDIDO'),
+        title: const Text('FINALIZAR PEDIDO'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context, false),
@@ -131,7 +131,7 @@ class _TelaCheckoutState extends State<TelaCheckout> {
                             child: TextFormField(
                               controller: _nomeController,
                               decoration: const InputDecoration(labelText: 'Nome do Cliente', border: OutlineInputBorder()),
-                              validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
+                              validator: (v) { if (v == null || v.isEmpty) return 'Obrigatório'; if (v.replaceAll(new RegExp(r'[^0-9]'), '').length < 10) return 'Número inválido'; return null; }
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -140,7 +140,7 @@ class _TelaCheckoutState extends State<TelaCheckout> {
                               controller: _whatsappController,
                               decoration: const InputDecoration(labelText: 'WhatsApp', border: OutlineInputBorder()),
                               keyboardType: TextInputType.phone,
-                              validator: (v) => v!.isEmpty ? 'Obrigatório' : null,
+                              validator: (v) { if (v == null || v.isEmpty) return 'Obrigatório'; if (v.replaceAll(new RegExp(r'[^0-9]'), '').length < 10) return 'Número inválido'; return null; }
                             ),
                           ),
                         ],
@@ -271,11 +271,15 @@ class _TelaCheckoutState extends State<TelaCheckout> {
                         itemCount: widget.itens.length,
                         itemBuilder: (context, index) {
                           final item = widget.itens[index];
+                          final List<Widget> subs = [];
+                          if (item.adicionais.isNotEmpty) {
+                            subs.addAll(item.adicionais.map((a) => Text('Adicional: ' + a.nome + ' + R\$ ' + a.preco.toStringAsFixed(2).replaceAll('.', ','))));
+                          }
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: Text('${item.quantidade}x ${item.oferta.nome}'),
-                            subtitle: Text('Tamanho ${item.tamanhoEscolhido.tamanho.sigla}'), // Usando a sigla explícita (P, M, G)
-                            trailing: Text('R\$ ${item.subtotal.toStringAsFixed(2).replaceAll('.', ',')}'),
+                            title: Text(item.quantidade.toString() + 'x ' + item.oferta.nome + ' — ' + item.tamanhoEscolhido.tamanho.sigla, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: subs.isNotEmpty ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: subs) : null,
+                            trailing: Text('R\$ ' + item.subtotal.toStringAsFixed(2).replaceAll('.', ','), style: const TextStyle(fontWeight: FontWeight.bold)),
                           );
                         },
                       ),
@@ -305,7 +309,7 @@ class _TelaCheckoutState extends State<TelaCheckout> {
                         const Text('TOTAL A PAGAR', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                         Text(
                           'R\$ ${(_tipoEntrega == TipoEntrega.entrega ? widget.total + 5.0 : widget.total).toStringAsFixed(2).replaceAll('.', ',')}',
-                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.primaryColor),
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.primary),
                         ),
                       ],
                     ),
@@ -354,7 +358,7 @@ class _TelaCheckoutState extends State<TelaCheckout> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(titulo, style: AppTheme.themeData.textTheme.titleMedium?.copyWith(color: AppTheme.primaryColor)),
+        Text(titulo, style: AppTheme.themeData.textTheme.titleMedium?.copyWith(color: AppTheme.primary)),
         const SizedBox(height: 16),
         ...filhos,
       ],
@@ -362,7 +366,7 @@ class _TelaCheckoutState extends State<TelaCheckout> {
   }
 
   Future<void> _finalizarDraft() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor, corrija os erros no formulário antes de continuar.', style: TextStyle(fontWeight: FontWeight.bold)), backgroundColor: Colors.red)); return; }
 
     setState(() => _enviando = true);
 
@@ -417,10 +421,7 @@ class _TelaCheckoutState extends State<TelaCheckout> {
       final msgOperacional = WhatsAppMessageBuilder.buildOperacional(draft, numeroPedido: pedidoId.length >= 8 ? pedidoId.substring(0, 8) : pedidoId);
       final msgCliente = WhatsAppMessageBuilder.buildCliente(draft, numeroPedido: pedidoId.length >= 8 ? pedidoId.substring(0, 8) : pedidoId);
 
-      const whatsappCozinha = '5511999999999';
-
-      await widget.whatsappService.enviarMensagem(telefone: whatsappCozinha, mensagem: msgOperacional);
-      await Future.delayed(const Duration(milliseconds: 600));
+      
       await widget.whatsappService.enviarMensagem(telefone: draft.cliente!.telefoneWhatsApp, mensagem: msgCliente);
 
       if (!mounted) return;
@@ -429,7 +430,7 @@ class _TelaCheckoutState extends State<TelaCheckout> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Nao foi possivel finalizar.\nErro: ${e.toString().replaceAll('Exception: ', '').replaceAll('Dominio: ', '')}'),
+        content: Text('Nao foi possivel finalizar o pedido. Verifique os dados e o caixa e tente novamente.'),
         backgroundColor: Colors.red.shade800,
         duration: const Duration(seconds: 4),
       ));
@@ -444,25 +445,44 @@ class _TelaCheckoutState extends State<TelaCheckout> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Abrir Caixa'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.point_of_sale, color: AppTheme.success, size: 32),
+            const SizedBox(width: 12),
+            const Text('Abrir Caixa', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Nenhum caixa aberto. Informe o saldo inicial para abrir o caixa agora:'),
-            const SizedBox(height: 10),
+            const Text('O PDV atual está fechado. Para registrar este pedido, abra o caixa informando o troco inicial:', style: TextStyle(color: Colors.black87, fontSize: 15)),
+            const SizedBox(height: 24),
             TextField(
               controller: saldoController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Saldo Inicial (R\$)'),
+              decoration: InputDecoration(
+                labelText: 'Saldo Inicial (R\$)',
+                prefixIcon: const Icon(Icons.attach_money),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
             ),
           ],
         ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, null),
-            child: const Text('CANCELAR'),
+            child: const Text('CANCELAR', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.success,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
             onPressed: () async {
               try {
                 final saldo = double.tryParse(saldoController.text.replaceAll(',', '.')) ?? 0.0;
@@ -471,16 +491,25 @@ class _TelaCheckoutState extends State<TelaCheckout> {
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(e.toString().replaceAll('Exception: ', '')),
-                    backgroundColor: Colors.red.shade800,
+                    content: Text('Nao foi possivel abrir o caixa. Verifique se outro operador ja abriu no PDV atual e tente novamente.', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    backgroundColor: Colors.orange.shade800,
                   ));
                 }
               }
             },
-            child: const Text('ABRIR E CONTINUAR'),
+            child: const Text('ABRIR E CONTINUAR', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 }
+
+
+
+
+
+
+
+
+

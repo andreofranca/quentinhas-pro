@@ -34,7 +34,7 @@ class _ShellPrincipalState extends State<ShellPrincipal> {
       // 1: Pedidos
       const TelaListaPedidos(), // We need to build this or reuse
       // 2: Cozinha / KDS
-      const TelaKDS(),
+      const TelaKds(),
       // 3: Cardápio
       const TelaGestaoCardapio(),
       // 4: Produtos
@@ -77,7 +77,7 @@ class _ShellPrincipalState extends State<ShellPrincipal> {
                 if (!isDesktop)
                   AppBar(
                     title: const Text('QUENTINHAS PRO'),
-                    backgroundColor: AppTheme.primaryColor,
+                    backgroundColor: AppTheme.primary,
                     foregroundColor: Colors.white,
                   ),
                 Expanded(
@@ -97,7 +97,7 @@ class _ShellPrincipalState extends State<ShellPrincipal> {
   Widget _buildSidebar() {
     return Container(
       width: 250,
-      color: AppTheme.primaryColor,
+      color: AppTheme.primary,
       child: _buildSidebarContent(),
     );
   }
@@ -107,7 +107,7 @@ class _ShellPrincipalState extends State<ShellPrincipal> {
       padding: EdgeInsets.zero,
       children: [
         DrawerHeader(
-          decoration: const BoxDecoration(color: AppTheme.primaryColor),
+          decoration: const BoxDecoration(color: AppTheme.primary),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.end,
@@ -176,3 +176,5 @@ class _ShellPrincipalState extends State<ShellPrincipal> {
     );
   }
 }
+
+

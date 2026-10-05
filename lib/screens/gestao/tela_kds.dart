@@ -2,158 +2,180 @@ import 'package:flutter/material.dart';
 import '../../models/dominio.dart';
 import '../../services/dashboard_pedido_service.dart';
 import '../../services/pedido_service.dart';
-import '../../models/models_quentinha.dart';
 import '../../theme/app_theme.dart';
-import 'dart:async';
 
-class TelaKDS extends StatefulWidget {
-  const TelaKDS({super.key});
-  @override State<TelaKDS> createState() => _TelaKDSState();
+class TelaKds extends StatefulWidget {
+  const TelaKds({super.key});
+  @override State<TelaKds> createState() => _TelaKdsState();
 }
 
-class _TelaKDSState extends State<TelaKDS> {
+class _TelaKdsState extends State<TelaKds> {
   final DashboardPedidoService _dashboardService = DashboardPedidoService();
   final PedidoService _pedidoService = PedidoService();
   List<Pedido> _pedidos = [];
   bool _isLoading = true;
-  Timer? _timer;
 
   @override void initState() {
     super.initState();
-    _carregarPedidos();
-    _timer = Timer.periodic(const Duration(seconds: 15), (_) => _carregarPedidos(silent: true));
+    _carregar();
   }
-  @override void dispose() { _timer?.cancel(); super.dispose(); }
 
-  Future<void> _carregarPedidos({bool silent = false}) async {
-    if (!silent) setState(() => _isLoading = true);
+  Future<void> _carregar() async {
+    setState(() => _isLoading = true);
     try {
-      final pedidos = await _dashboardService.obterPedidos();
-      if (mounted) setState(() { _pedidos = pedidos; _isLoading = false; });
-    } catch (e) {
+      _pedidos = await _dashboardService.obterPedidos();
+    } catch(e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao carregar KDS: $e')));
+    } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _avancarStatus(Pedido p) async {
     String novoStatus;
-    if (p.statusLogistico == 'NOVO') novoStatus = 'PREPARANDO';
-    else if (p.statusLogistico == 'PREPARANDO') novoStatus = 'PRONTO';
+    if (p.statusLogistico == 'CONFIRMADO') novoStatus = 'EM_PRODUCAO';
+    else if (p.statusLogistico == 'EM_PRODUCAO') novoStatus = 'PRONTO';
     else return;
 
     try {
       await _dashboardService.atualizarStatus(p.numeroPedido, novoStatus);
-      _carregarPedidos();
+      _carregar();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red));
     }
   }
 
   @override Widget build(BuildContext context) {
     if (_isLoading && _pedidos.isEmpty) return const Center(child: CircularProgressIndicator());
     
-    // Only show active kitchen orders
-    final ativos = _pedidos.where((p) => p.statusLogistico == 'NOVO' || p.statusLogistico == 'PREPARANDO' || p.statusLogistico == 'PRONTO').toList();
-    final novos = ativos.where((p) => p.statusLogistico == 'NOVO').toList();
-    final preparando = ativos.where((p) => p.statusLogistico == 'PREPARANDO').toList();
+    final ativos = _pedidos.where((p) => p.statusLogistico == 'CONFIRMADO' || p.statusLogistico == 'EM_PRODUCAO' || p.statusLogistico == 'PRONTO').toList();
+    final novos = ativos.where((p) => p.statusLogistico == 'CONFIRMADO').toList();
+    final preparando = ativos.where((p) => p.statusLogistico == 'EM_PRODUCAO').toList();
     final prontos = ativos.where((p) => p.statusLogistico == 'PRONTO').toList();
 
-    return Container(
-      color: Colors.grey.shade200,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('KDS - Kitchen Display System', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.primaryColor)),
-              IconButton(icon: const Icon(Icons.refresh), onPressed: _carregarPedidos),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: _buildColuna('NOVOS', novos, AppTheme.primaryColor)),
-                const SizedBox(width: 16),
-                Expanded(child: _buildColuna('EM PREPARAÇÃO', preparando, AppTheme.secondaryColor)),
-                const SizedBox(width: 16),
-                Expanded(child: _buildColuna('PRONTOS', prontos, AppTheme.successColor)),
-              ],
-            ),
-          )
-        ],
-      )
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6F8),
+      appBar: AppBar(
+        title: const Text('KDS - Kitchen Display System', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        foregroundColor: AppTheme.primary,
+        elevation: 1,
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _carregar)
+        ]
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _buildColuna('NOVOS', novos, AppTheme.primary, Icons.receipt_long)),
+            const SizedBox(width: 16),
+            Expanded(child: _buildColuna('EM PREPARAÇÃO', preparando, AppTheme.warning, Icons.local_fire_department)),
+            const SizedBox(width: 16),
+            Expanded(child: _buildColuna('PRONTOS', prontos, AppTheme.success, Icons.check_circle_outline)),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildColuna(String titulo, List<Pedido> lista, Color corHeader) {
+  Widget _buildColuna(String titulo, List<Pedido> pedidos, Color cor, IconData icon) {
     return Column(
       children: [
         Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: corHeader, borderRadius: const BorderRadius.vertical(top: Radius.circular(8))),
-          child: Text('$titulo (${lista.length})', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          decoration: BoxDecoration(
+            color: cor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0,2))]
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text('$titulo (${pedidos.length})', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                ],
+              ),
+            ],
+          ),
         ),
         Expanded(
           child: Container(
             color: Colors.white,
             child: ListView.builder(
               padding: const EdgeInsets.all(8),
-              itemCount: lista.length,
-              itemBuilder: (context, index) => _buildCardPedido(lista[index]),
-            ),
-          ),
-        ),
+              itemCount: pedidos.length,
+              itemBuilder: (context, i) {
+                final p = pedidos[i];
+                final tempo = DateTime.now().difference(p.dataHora).inMinutes;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: Colors.grey.shade200)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('#${p.numeroPedido.substring(0, 8).toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(color: tempo > 15 ? Colors.red.shade50 : Colors.green.shade50, borderRadius: BorderRadius.circular(12)),
+                              child: Text('$tempo min', style: TextStyle(color: tempo > 15 ? Colors.red : Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
+                            )
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(p.tipoEntrega == 'ENTREGA' ? Icons.moped : Icons.storefront, size: 16, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Expanded(child: Text('${p.nomeCliente ?? 'Balcão'} (${p.tipoEntrega})', style: const TextStyle(color: Colors.black87))),
+                          ],
+                        ),
+                        const Divider(height: 24),
+                        ...p.itens.map((i) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text('• ${i.quantidade}x ${i.produto.nome}', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+                        )),
+                        if (p.observacao?.isNotEmpty == true) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.amber.shade200)),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.warning_amber_rounded, size: 16, color: Colors.orange),
+                                const SizedBox(width: 4),
+                                Expanded(child: Text(p.observacao!, style: const TextStyle(color: Colors.orange))),
+                              ],
+                            ),
+                          )
+                        ],
+                        const SizedBox(height: 16),
+                        if (p.statusLogistico == 'CONFIRMADO')
+                          SizedBox(width: double.infinity, child: ElevatedButton.icon(icon: const Icon(Icons.play_arrow), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white), onPressed: () => _avancarStatus(p), label: const Text('INICIAR PREPARO'))),
+                        if (p.statusLogistico == 'EM_PRODUCAO')
+                          SizedBox(width: double.infinity, child: ElevatedButton.icon(icon: const Icon(Icons.check), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success, foregroundColor: Colors.white), onPressed: () => _avancarStatus(p), label: const Text('MARCAR PRONTO'))),
+                      ],
+                    ),
+                  )
+                );
+              }
+            )
+          )
+        )
       ],
     );
   }
-
-  Widget _buildCardPedido(Pedido p) {
-    final tempoDecorrido = DateTime.now().difference(p.dataHora).inMinutes;
-    final colorTempo = tempoDecorrido > 30 ? Colors.red : Colors.green;
-
-    return Card(
-      elevation: 3,
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('#${p.numeroPedido.substring(0, 8)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                Text('$tempoDecorrido min', style: TextStyle(color: colorTempo, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text('Cliente: ${p.nomeCliente ?? 'Balcão'} (${p.tipoEntrega})', style: const TextStyle(fontWeight: FontWeight.w600)),
-            const Divider(),
-            ...p.itens.map((i) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text('${i.quantidade}x ${i.produto.nome}', style: const TextStyle(fontSize: 15)),
-            )),
-            if (p.observacao != null && p.observacao!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                color: Colors.amber.shade100,
-                child: Text('Obs: ${p.observacao}', style: const TextStyle(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic)),
-              ),
-            ],
-            const SizedBox(height: 12),
-            if (p.statusLogistico == 'NOVO')
-              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => _avancarStatus(p), child: const Text('INICIAR PREPARO'))),
-            if (p.statusLogistico == 'PREPARANDO')
-              SizedBox(width: double.infinity, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppTheme.successColor), onPressed: () => _avancarStatus(p), child: const Text('MARCAR PRONTO'))),
-          ],
-        ),
-      ),
-    );
-  }
 }
+
+

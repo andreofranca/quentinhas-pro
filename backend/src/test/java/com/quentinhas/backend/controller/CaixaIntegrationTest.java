@@ -51,13 +51,13 @@ class CaixaIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTes
     @DisplayName("Deve retornar 200 com os dados do caixa ativo do usuario")
     void deveRetornarCaixaAtivo() throws Exception {
         UUID caixaId = UUID.randomUUID();
-        jdbcTemplate.update("INSERT INTO caixas (id, operador_id, terminal_id, status) VALUES (?, ?, 'TEST_TERM', 'ABERTO')", caixaId, userId);
+        jdbcTemplate.update("INSERT INTO caixas (id, operador_id, terminal_id, status) VALUES (?, ?, 'PDV-01', 'ABERTO')", caixaId, userId);
 
         mockMvc.perform(get("/api/caixas/ativo")
                         .with(user(mockUser)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(caixaId.toString()))
-                .andExpect(jsonPath("$.terminalId").value("TEST_TERM"))
+                .andExpect(jsonPath("$.terminalId").value("PDV-01"))
                 .andExpect(jsonPath("$.status").value("ABERTO"));
     }
 
@@ -97,7 +97,7 @@ class CaixaIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTes
     @DisplayName("Deve retornar 409 conflito ao tentar abrir caixa ja aberto")
     void deveRetornar409SeCaixaJaAberto() throws Exception {
         UUID caixaId = UUID.randomUUID();
-        jdbcTemplate.update("INSERT INTO caixas (id, operador_id, terminal_id, status) VALUES (?, ?, 'TEST_TERM', 'ABERTO')", caixaId, userId);
+        jdbcTemplate.update("INSERT INTO caixas (id, operador_id, terminal_id, status) VALUES (?, ?, 'PDV-01', 'ABERTO')", caixaId, userId);
 
         String jsonPayload = """
                 {
@@ -166,3 +166,5 @@ class CaixaIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTes
                 .andExpect(status().isNotFound());
     }
 }
+
+

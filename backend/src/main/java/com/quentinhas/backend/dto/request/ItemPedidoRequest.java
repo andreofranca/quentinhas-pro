@@ -2,12 +2,12 @@ package com.quentinhas.backend.dto.request;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 public record ItemPedidoRequest(
-        @NotNull UUID ofertaId,
+        @NotNull UUID variacaoId,
         @NotNull @Positive Integer quantidade,
-        @NotNull @Positive BigDecimal precoUnitario,
-        @NotNull @Positive BigDecimal subtotal
+        List<UUID> adicionaisIds,
+        String observacoes
 ) {}

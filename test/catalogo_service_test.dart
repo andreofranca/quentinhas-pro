@@ -41,7 +41,8 @@ void main() {
     });
 
     final service = CatalogoService();
-    final ofertas = await service.buscarCatalogo();
+    final catalogoCompleto = await service.buscarCatalogo();
+    final ofertas = catalogoCompleto.ofertas;
 
     expect(ofertas.length, 1);
     expect(ofertas.first.nome, "Feijoada Completa");
@@ -63,3 +64,4 @@ void main() {
     expect(tamanhos[1].ofertaId, "aaaa9195-...");
   });
 }
+

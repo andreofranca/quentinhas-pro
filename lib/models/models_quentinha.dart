@@ -1,7 +1,22 @@
-// Modelos focados no fluxo da Quentinha
 import '../utils/whatsapp_phone_normalizer.dart';
+class AdicionalQuentinha {
+  final String id;
+  final String nome;
+  final double preco;
 
-enum TamanhoQuentinha { P, M, G }
+  AdicionalQuentinha({required this.id, required this.nome, required this.preco});
+}
+
+class CatalogoCompleto {
+  final List<OfertaQuentinha> ofertas;
+  final List<AdicionalQuentinha> adicionais;
+  
+  CatalogoCompleto({required this.ofertas, required this.adicionais});
+}
+// Modelos focados no fluxo da Quentinha
+
+
+enum TamanhoQuentinha { P, M, G, U }
 
 extension TamanhoQuentinhaExtension on TamanhoQuentinha {
   String get nome {
@@ -12,7 +27,9 @@ extension TamanhoQuentinhaExtension on TamanhoQuentinha {
         return 'Média';
       case TamanhoQuentinha.G:
         return 'Grande';
-    }
+        case TamanhoQuentinha.U:
+          return 'Única';
+      }
   }
 
   String get sigla {
@@ -23,7 +40,9 @@ extension TamanhoQuentinhaExtension on TamanhoQuentinha {
         return 'M';
       case TamanhoQuentinha.G:
         return 'G';
-    }
+        case TamanhoQuentinha.U:
+          return 'U';
+      }
   }
 }
 
@@ -56,6 +75,8 @@ class OfertaQuentinha {
   final String id;
   final String nome;
   final String descricao;
+  final String categoria;
+  final int estoqueAtual;
   final List<TamanhoOpcao> tamanhos;
   final String? imagemUrl;
 
@@ -63,6 +84,8 @@ class OfertaQuentinha {
     required this.id,
     required this.nome,
     required this.descricao,
+    this.categoria = 'MARMITA',
+    this.estoqueAtual = 0,
     required this.tamanhos,
     this.imagemUrl,
   });
@@ -73,15 +96,17 @@ class ItemCarrinhoQuentinha {
   final OfertaQuentinha oferta;
   final TamanhoOpcao tamanhoEscolhido;
   int quantidade;
+  final List<AdicionalQuentinha> adicionais;
 
   ItemCarrinhoQuentinha({
     required this.idItem,
     required this.oferta,
     required this.tamanhoEscolhido,
     this.quantidade = 1,
+    this.adicionais = const [],
   });
 
-  double get subtotal => tamanhoEscolhido.preco * quantidade;
+  double get subtotal => (tamanhoEscolhido.preco + adicionais.fold(0.0, (sum, a) => sum + a.preco)) * quantidade;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,31 +249,41 @@ class PedidoDraft {
     }
 
     return {
-      'caixa_id': caixaId,
+      'caixaId': caixaId,
       'cliente': cliente != null ? {
         'nome': cliente!.nome,
         'telefone': cliente!.telefoneWhatsApp,
       } : null,
       'modalidade': tipoEntrega == TipoEntrega.entrega ? 'ENTREGA' : 'RETIRADA',
-      'taxa_entrega': taxaEntrega,
-      'endereco_entrega': enderecoString.isNotEmpty ? enderecoString : null,
+      'taxaEntrega': taxaEntrega,
+      'enderecoEntrega': enderecoString.isNotEmpty ? enderecoString : null,
       'observacoes': observacoes,
       'total': total,
       'itens': itens.map((item) => {
-        'oferta_id': item.oferta.id, 
+        'variacaoId': item.tamanhoEscolhido.ofertaId,
+          'adicionaisIds': item.adicionais.map((a) => a.id).toList(), 
         'quantidade': item.quantidade,
-        'preco_unitario': item.tamanhoEscolhido.preco,
+        'precoUnitario': item.tamanhoEscolhido.preco,
         'subtotal': item.subtotal,
       }).toList(),
       'pagamento': formaPagamento != FormaPagamentoDraft.pendente ? {
-        'forma_pagamento': formaPagamento.name.toUpperCase(),
+        'formaPagamento': formaPagamento.name.toUpperCase(),
         'valor': total,
-        'valor_recebido': valorRecebido ?? total,
+        'valorRecebido': valorRecebido ?? total,
         'troco': valorTroco,
       } : null,
-      'provedor_evento': provedorEvento,
-      'external_event_id': externalEventId,
+      'provedorEvento': provedorEvento,
+      'externalEventId': externalEventId,
     };
   }
 }
+
+
+
+
+
+
+
+
+
 

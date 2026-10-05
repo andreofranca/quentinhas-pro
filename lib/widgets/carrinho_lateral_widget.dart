@@ -31,10 +31,10 @@ class CarrinhoLateralWidget extends StatelessWidget {
           // Header
           Container(
             padding: const EdgeInsets.all(16),
-            color: AppTheme.backgroundLight,
+            color: AppTheme.background,
             child: Row(
               children: [
-                const Icon(Icons.shopping_bag_outlined, color: AppTheme.textDark),
+                const Icon(Icons.shopping_bag_outlined, color: AppTheme.textPrimary),
                 const SizedBox(width: 8),
                 Text(
                   'PEDIDO ATUAL',
@@ -44,7 +44,7 @@ class CarrinhoLateralWidget extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryColor,
+                    color: AppTheme.primary,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -63,7 +63,7 @@ class CarrinhoLateralWidget extends StatelessWidget {
                     child: Text(
                       'O carrinho está vazio.\nAdicione pratos do cardápio.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: AppTheme.textMuted),
+                      style: TextStyle(color: AppTheme.textSecondary),
                     ),
                   )
                 : ListView.separated(
@@ -104,7 +104,7 @@ class CarrinhoLateralWidget extends StatelessWidget {
                     Text(
                       'R\$ ${total.toStringAsFixed(2)}',
                       style: AppTheme.themeData.textTheme.titleLarge?.copyWith(
-                        color: AppTheme.primaryColor,
+                        color: AppTheme.primary,
                         fontSize: 28,
                       ),
                     ),
@@ -151,7 +151,7 @@ class _CarrinhoItemTile extends StatelessWidget {
         // Quantidade Controls
         Container(
           decoration: BoxDecoration(
-            border: Border.all(color: AppTheme.backgroundLight),
+            border: Border.all(color: AppTheme.background),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
@@ -160,7 +160,7 @@ class _CarrinhoItemTile extends StatelessWidget {
                 onTap: onAdd,
                 child: const Padding(
                   padding: EdgeInsets.all(4.0),
-                  child: Icon(Icons.add, size: 20, color: AppTheme.primaryColor),
+                  child: Icon(Icons.add, size: 20, color: AppTheme.primary),
                 ),
               ),
               Text(
@@ -174,7 +174,7 @@ class _CarrinhoItemTile extends StatelessWidget {
                   child: Icon(
                     item.quantidade > 1 ? Icons.remove : Icons.delete_outline,
                     size: 20,
-                    color: item.quantidade > 1 ? AppTheme.textDark : AppTheme.errorColor,
+                    color: item.quantidade > 1 ? AppTheme.textPrimary : AppTheme.error,
                   ),
                 ),
               ),
@@ -195,7 +195,7 @@ class _CarrinhoItemTile extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppTheme.secondaryColor.withAlpha(51), // ~0.2 opacity
+                  color: AppTheme.warning.withAlpha(51), // ~0.2 opacity
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -219,3 +219,5 @@ class _CarrinhoItemTile extends StatelessWidget {
     );
   }
 }
+
+

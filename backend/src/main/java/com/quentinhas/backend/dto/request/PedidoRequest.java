@@ -16,7 +16,6 @@ public record PedidoRequest(
         @NotNull @PositiveOrZero BigDecimal taxaEntrega,
         String enderecoEntrega,
         String observacoes,
-        @NotNull @PositiveOrZero BigDecimal total,
         @NotEmpty @Valid List<ItemPedidoRequest> itens,
         @Valid PagamentoRequest pagamento,
         @NotBlank String provedorEvento,
