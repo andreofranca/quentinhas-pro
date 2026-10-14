@@ -105,14 +105,14 @@ class TelaLogin extends StatefulWidget {
 }
 
 class _TelaLoginState extends State<TelaLogin> {
-  final _controleLogin = TextEditingController();
-  final _controleSenha = TextEditingController();
+  final _controleLogin = TextEditingController(text: 'admin@quentinhas.com.br');
+  final _controleSenha = TextEditingController(text: 'admin');
   bool _carregando = false;
   bool _ocultarSenha = true;
 
   void _tentarLogin() async {
-    final email = _controleLogin.text.trim();
-    final senha = _controleSenha.text;
+    final email = _controleLogin.text.trim().toLowerCase();
+    final senha = _controleSenha.text.trim();
 
     if (email.isEmpty || senha.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -274,7 +274,21 @@ class _TelaLoginState extends State<TelaLogin> {
                           ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
                           : const Text("Entrar no sistema", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))
                       )
-                    )
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton.icon(
+                      icon: const Icon(Icons.vpn_key_outlined, size: 18, color: corPrimaria),
+                      label: const Text(
+                        "Preencher credenciais padrão (Admin)",
+                        style: TextStyle(color: corPrimaria, fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _controleLogin.text = 'admin@quentinhas.com.br';
+                          _controleSenha.text = 'admin';
+                        });
+                      },
+                    ),
                   ]
                 )
               )

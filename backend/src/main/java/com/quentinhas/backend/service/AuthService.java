@@ -54,14 +54,17 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
+        String emailNormalizado = request.email() != null ? request.email().trim().toLowerCase() : "";
+        String senha = request.senha() != null ? request.senha().trim() : "";
+
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        request.email(),
-                        request.senha()
+                        emailNormalizado,
+                        senha
                 )
         );
 
-        Usuario usuario = repository.findByEmail(request.email())
+        Usuario usuario = repository.findByEmailIgnoreCase(emailNormalizado)
                 .orElseThrow(() -> new IllegalArgumentException("E-mail ou senha inválidos"));
 
         String jwtToken = jwtService.generateToken(usuario);
