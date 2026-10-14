@@ -29,17 +29,22 @@ Future<void> main() async {
     defaultValue: 'sb_publishable_QIjcG1GfDqCw2PRsZhW9sQ_5YdpZUma',
   );
 
-  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
-    runApp(const AppConfiguracaoInvalida());
-    return;
+  try {
+    if (supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty) {
+      await Supabase.initialize(
+        url: supabaseUrl,
+        anonKey: supabaseAnonKey,
+      );
+    }
+  } catch (e) {
+    debugPrint('Aviso: Inicializacao Supabase contornada: $e');
   }
 
-  await Supabase.initialize(
-    url: supabaseUrl,
-    anonKey: supabaseAnonKey,
-  );
-
-  await ApiClient.instance.init();
+  try {
+    await ApiClient.instance.init();
+  } catch (e) {
+    debugPrint('Aviso: Inicializacao ApiClient contornada: $e');
+  }
 
   runApp(const AppLanchonete());
 }
@@ -146,13 +151,17 @@ class _TelaLoginState extends State<TelaLogin> {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ShellPrincipal(usuarioLogado: user)));
     } catch (e) {
       if (!mounted) return;
-      String erro = "Acesso Negado. Verifique e-mail e senha.";
+      String erro = "Não foi possível conectar ao servidor (http://localhost:8080). Verifique se o backend está ativo.";
       if (e is ApiException) {
-          if (e.statusCode == 400 || e.statusCode == 401 || e.statusCode == 403) {
-              erro = "Credenciais inválidas. Verifique seu e-mail e senha e tente novamente.";
-          } else {
-              erro = "Erro ao tentar conectar: ${e.statusCode} - ${e.message}";
-          }
+        if (e.statusCode == 401) {
+          erro = "Credenciais inválidas. Verifique seu e-mail e senha e tente novamente.";
+        } else if (e.statusCode == 400) {
+          erro = e.message.isNotEmpty ? e.message : "Dados inválidos para autenticação.";
+        } else if (e.statusCode == 403) {
+          erro = "Acesso negado. Usuário sem permissão de acesso.";
+        } else {
+          erro = "Erro ao tentar conectar: ${e.statusCode} - ${e.message}";
+        }
       }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(erro), backgroundColor: Colors.red));
     } finally {

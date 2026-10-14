@@ -63,3 +63,5 @@ META-INF/
 Query*.java
 *.py
 *.txt
+*.png
+server_web.js

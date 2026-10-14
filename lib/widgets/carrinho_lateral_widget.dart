@@ -102,7 +102,7 @@ class CarrinhoLateralWidget extends StatelessWidget {
                   children: [
                     Text('Total', style: AppTheme.themeData.textTheme.titleMedium),
                     Text(
-                      'R\$ ${total.toStringAsFixed(2)}',
+                      'R\$ ${total.toStringAsFixed(2).replaceAll('.', ',')}',
                       style: AppTheme.themeData.textTheme.titleLarge?.copyWith(
                         color: AppTheme.primary,
                         fontSize: 28,
@@ -207,12 +207,23 @@ class _CarrinhoItemTile extends StatelessWidget {
                   ),
                 ),
               ),
+              if (item.adicionais.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '+ ${item.adicionais.map((a) => a.nome).join(', ')}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textSecondary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
         // Preço
         Text(
-          'R\$ ${item.subtotal.toStringAsFixed(2)}',
+          'R\$ ${item.subtotal.toStringAsFixed(2).replaceAll('.', ',')}',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ],

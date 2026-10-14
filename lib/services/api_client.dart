@@ -33,17 +33,23 @@ class ApiClient {
   static final ApiClient instance = ApiClient._privateConstructor();
 
   Future<void> init() async {
-    _jwtToken = await _secureStorage.read(key: _tokenKey);
+    try {
+      _jwtToken = await _secureStorage.read(key: _tokenKey);
+    } catch (_) {}
   }
 
   Future<void> saveToken(String token) async {
-    await _secureStorage.write(key: _tokenKey, value: token);
     _jwtToken = token;
+    try {
+      await _secureStorage.write(key: _tokenKey, value: token);
+    } catch (_) {}
   }
 
   Future<void> clearToken() async {
-    await _secureStorage.delete(key: _tokenKey);
     _jwtToken = null;
+    try {
+      await _secureStorage.delete(key: _tokenKey);
+    } catch (_) {}
   }
 
   bool get isAuthenticated => _jwtToken != null;

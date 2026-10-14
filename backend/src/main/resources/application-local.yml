@@ -12,3 +12,18 @@ spring:
 
 jwt:
   secret: "localdevsecretlocaldevsecretlocaldevsecretlocaldevsecretlocaldevsecret"
+
+cors:
+  allowed-origins:
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"
+    - "http://localhost:59999"
+    - "http://127.0.0.1:59999"
+    - "http://localhost:8080"
+    - "http://127.0.0.1:8080"
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    com.quentinhas: DEBUG
+    org.springframework.web: DEBUG
