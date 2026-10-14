@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/dominio.dart';
 import '../../services/dashboard_pedido_service.dart';
-import '../../models/models_quentinha.dart';
 import '../../theme/app_theme.dart';
 
 class TelaDashboardReal extends StatefulWidget {
@@ -89,7 +88,7 @@ class _TelaDashboardRealState extends State<TelaDashboardReal> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(color: Colors.black.withAlpha(13), blurRadius: 10, offset: const Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -128,12 +127,12 @@ class _TelaDashboardRealState extends State<TelaDashboardReal> {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: recentes.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (context, index) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final p = recentes[index];
           return ListTile(
             leading: CircleAvatar(backgroundColor: _getCorStatus(p.statusLogistico), child: const Icon(Icons.receipt, color: Colors.white)),
-            title: Text('${p.nomeCliente ?? 'Cliente Balcão'} (Pedido ${p.numeroPedido.substring(0, 8)})'),
+            title: Text('${p.nomeCliente.isNotEmpty ? p.nomeCliente : 'Cliente Balcão'} (Pedido ${p.numeroPedido.length >= 8 ? p.numeroPedido.substring(0, 8) : p.numeroPedido})'),
             subtitle: Text('${p.statusLogistico} - R\$ ${p.total.toStringAsFixed(2).replaceAll('.', ',')}'),
             trailing: Text('${p.dataHora.hour.toString().padLeft(2, '0')}:${p.dataHora.minute.toString().padLeft(2, '0')}'),
           );

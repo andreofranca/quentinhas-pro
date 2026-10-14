@@ -166,7 +166,7 @@ class _BotaoTamanho extends StatelessWidget {
           Opacity(
             opacity: disponivel ? 1.0 : 0.4,
             child: Text(
-              'R\$ ',
+              disponivel ? 'R\$ ${opcao.preco.toStringAsFixed(2).replaceAll('.', ',')}' : 'ESGOTADO',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,

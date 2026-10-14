@@ -1,4 +1,5 @@
 import 'package:url_launcher/url_launcher.dart';
+import '../utils/whatsapp_phone_normalizer.dart';
 
 /// Exceção customizada para erros do WhatsApp
 class WhatsAppException implements Exception {
@@ -20,38 +21,33 @@ abstract class WhatsAppService {
 }
 
 /// Implementação do serviço usando o aplicativo nativo via URL Launcher.
-/// Herdado e adaptado do legado do Lanchonete Pro.
 class WhatsAppUrlLauncherService implements WhatsAppService {
   final String defaultCountryCode;
 
   WhatsAppUrlLauncherService({this.defaultCountryCode = '+55'});
-
-  String _normalizarTelefone(String telefoneRaw) {
-    String limpo = telefoneRaw.replaceAll(RegExp(r'[^0-9]'), '');
-    
-    // Se não começar com o DDI, injetamos (ex: 55)
-    final cod = defaultCountryCode.replaceAll('+', '');
-    if (!limpo.startsWith(cod) && limpo.length <= 11) {
-      limpo = '$cod$limpo';
-    }
-    return limpo;
-  }
 
   @override
   Future<void> enviarMensagem({
     required String telefone,
     required String mensagem,
   }) async {
-    final foneNorm = _normalizarTelefone(telefone);
+    final foneNorm = WhatsAppPhoneNormalizer.normalizar(telefone);
     final uri = Uri.parse(
-      'https://api.whatsapp.com/send?phone=$foneNorm&text=${Uri.encodeComponent(mensagem)}',
+      'https://wa.me/$foneNorm?text=${Uri.encodeComponent(mensagem)}',
     );
 
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        throw WhatsAppException('Não foi possível abrir o WhatsApp (canLaunchUrl retornou falso).');
+      final ok = await launchUrl(
+        uri,
+        mode: LaunchMode.platformDefault,
+        webOnlyWindowName: '_blank',
+      );
+      if (!ok) {
+        // Fallback para external application
+        final okExt = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (!okExt) {
+          throw WhatsAppException('Não foi possível abrir o link do WhatsApp.');
+        }
       }
     } catch (e) {
       if (e is WhatsAppException) rethrow;

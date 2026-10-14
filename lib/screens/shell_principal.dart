@@ -4,7 +4,6 @@ import 'package:lanchonete_controle/theme/app_theme.dart';
 import 'dashboard/tela_dashboard_quentinhas.dart';
 import 'dashboard/tela_dashboard_real.dart';
 import '../main.dart';
-import '../models/dominio.dart';
 import 'gestao/tela_kds.dart';
 import 'gestao/tela_lista_pedidos.dart';
 import 'gestao/tela_caixa.dart'; // To access legacy screens like TelaGestaoPedidos, etc
@@ -119,22 +118,22 @@ class _ShellPrincipalState extends State<ShellPrincipal> {
             ],
           ),
         ),
-        _buildSectionHeader('OPERAÇÃO'),
-        _buildMenuItem(0, Icons.point_of_sale, 'Novo Pedido (PDV)'),
-        _buildMenuItem(1, Icons.receipt_long, 'Pedidos'),
+        _buildSectionHeader('ATENDIMENTO & CARDÁPIO'),
+        _buildMenuItem(0, Icons.storefront, 'Cardápio / PDV Balcão'),
+
+        _buildSectionHeader('OPERAÇÃO DA LOJA'),
+        _buildMenuItem(1, Icons.inbox, 'Recebimento de Pedidos'),
         _buildMenuItem(2, Icons.kitchen, 'Cozinha / KDS'),
+        _buildMenuItem(6, Icons.point_of_sale, 'Frente de Caixa'),
         
-        _buildSectionHeader('VENDAS'),
-        _buildMenuItem(3, Icons.menu_book, 'Cardápio'),
+        _buildSectionHeader('GESTÃO & ESTOQUE'),
+        _buildMenuItem(3, Icons.menu_book, 'Gestão de Cardápio'),
         _buildMenuItem(4, Icons.fastfood, 'Produtos'),
-        
-        _buildSectionHeader('GESTÃO'),
         _buildMenuItem(5, Icons.inventory, 'Estoque'),
-        _buildMenuItem(6, Icons.attach_money, 'Caixa'),
         _buildMenuItem(7, Icons.people, 'Clientes'),
         _buildMenuItem(8, Icons.badge, 'Equipe'),
         
-        _buildSectionHeader('ANÁLISES'),
+        _buildSectionHeader('FINANCEIRO & ANÁLISES'),
         _buildMenuItem(9, Icons.dashboard, 'Dashboard'),
         _buildMenuItem(10, Icons.bar_chart, 'Relatórios'),
         

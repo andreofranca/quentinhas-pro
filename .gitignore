@@ -55,3 +55,11 @@ scratch/
 .env
 .env.*
 !.env.example
+
+quarantine_*/
+playwright-test/
+android/build/
+META-INF/
+Query*.java
+*.py
+*.txt

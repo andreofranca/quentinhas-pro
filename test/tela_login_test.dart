@@ -34,13 +34,17 @@ void main() {
     
     await tester.enterText(find.byType(TextField).first, 'teste@teste.com');
     await tester.enterText(find.byType(TextField).last, 'senha123');
-    await tester.tap(find.text('ENTRAR NO ERP'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Entrar no sistema'));
     await tester.pumpAndSettle();
 
     expect(find.byType(ShellPrincipal), findsOneWidget);
   });
 
   testWidgets('Fluxo Login Erro (401) - Deve exibir SnackBar com erro', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
     ApiClient.instance.httpClient = MockClient((request) async {
       return http.Response(
         '{"status":401, "detail":"Credenciais invalidas"}',
@@ -53,14 +57,14 @@ void main() {
     
     await tester.enterText(find.byType(TextField).first, 'errado@teste.com');
     await tester.enterText(find.byType(TextField).last, 'senha123');
-    await tester.tap(find.text('ENTRAR NO ERP'));
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Entrar no sistema'));
     
     await tester.pump(const Duration(milliseconds: 100)); // Start request
     await tester.pump(const Duration(milliseconds: 100)); // Finish request
     await tester.pumpAndSettle(); // Settle animation
 
     expect(find.byType(ShellPrincipal), findsNothing);
-    expect(find.text('Credenciais invalidas'), findsOneWidget);
+    expect(find.text('Credenciais inválidas. Verifique seu e-mail e senha e tente novamente.'), findsOneWidget);
     expect(ApiClient.instance.isAuthenticated, isFalse);
   });
 }

@@ -1,12 +1,15 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/models_quentinha.dart';
 import '../../theme/app_theme.dart';
 import '../../services/whatsapp_service.dart';
-import '../../services/cep_service.dart';
+import '../../services/cep_service.dart' hide CepInputFormatter, NumeroEnderecoFormatter;
 import '../../services/pedido_service.dart';
 import '../../utils/whatsapp_message_builder.dart';
+import '../../formatters.dart';
 
 class TelaCheckout extends StatefulWidget {
   final List<ItemCarrinhoQuentinha> itens;
@@ -130,17 +133,44 @@ class _TelaCheckoutState extends State<TelaCheckout> {
                           Expanded(
                             child: TextFormField(
                               controller: _nomeController,
-                              decoration: const InputDecoration(labelText: 'Nome do Cliente', border: OutlineInputBorder()),
-                              validator: (v) { if (v == null || v.isEmpty) return 'Obrigatório'; if (v.replaceAll(new RegExp(r'[^0-9]'), '').length < 10) return 'Número inválido'; return null; }
+                              textCapitalization: TextCapitalization.words,
+                              inputFormatters: [PrimeiraLetraMaiusculaFormatter()],
+                              decoration: const InputDecoration(
+                                labelText: 'Nome do Cliente',
+                                hintText: 'Ex: Maria Silva',
+                                prefixIcon: Icon(Icons.person_outline),
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Informe o nome do cliente (apenas letras)';
+                                if (v.trim().length < 2) return 'Nome muito curto (mínimo de 2 letras)';
+                                if (RegExp(r'\d').hasMatch(v.trim())) return 'Nome inválido: não utilize números no nome';
+                                return null;
+                              },
                             ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
                             child: TextFormField(
                               controller: _whatsappController,
-                              decoration: const InputDecoration(labelText: 'WhatsApp', border: OutlineInputBorder()),
                               keyboardType: TextInputType.phone,
-                              validator: (v) { if (v == null || v.isEmpty) return 'Obrigatório'; if (v.replaceAll(new RegExp(r'[^0-9]'), '').length < 10) return 'Número inválido'; return null; }
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                TelefoneInputFormatter(),
+                              ],
+                              decoration: const InputDecoration(
+                                labelText: 'WhatsApp',
+                                hintText: '(00) 00000-0000',
+                                prefixIcon: Icon(Icons.phone_outlined),
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Informe o WhatsApp do cliente com DDD';
+                                final limpo = v.replaceAll(RegExp(r'[^0-9]'), '');
+                                if (limpo.length < 10) return 'Número incompleto: informe DDD + número (ex: 11 98888-7777)';
+                                if (limpo.length > 11) return 'Telefone inválido: máximo de 11 dígitos';
+                                return null;
+                              },
                             ),
                           ),
                         ],
@@ -177,8 +207,21 @@ class _TelaCheckoutState extends State<TelaCheckout> {
                               flex: 1,
                               child: TextFormField(
                                 controller: _cepController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                  CepInputFormatter(),
+                                ],
+                                onChanged: (v) {
+                                  final limpo = v.replaceAll(RegExp(r'[^0-9]'), '');
+                                  if (limpo.length == 8) {
+                                    _buscarCep();
+                                  }
+                                },
+                                onFieldSubmitted: (_) => _buscarCep(),
                                 decoration: InputDecoration(
                                   labelText: 'CEP',
+                                  hintText: '00000-000',
                                   border: const OutlineInputBorder(),
                                   suffixIcon: _buscandoCep
                                     ? const SizedBox(
@@ -190,12 +233,17 @@ class _TelaCheckoutState extends State<TelaCheckout> {
                                       )
                                     : IconButton(
                                         icon: const Icon(Icons.search),
+                                        tooltip: 'Buscar CEP',
                                         onPressed: _buscarCep,
                                       ),
                                 ),
-                                keyboardType: TextInputType.number,
-                                onFieldSubmitted: (_) => _buscarCep(),
-                                validator: (v) => _tipoEntrega == TipoEntrega.entrega && v!.isEmpty ? 'Obrigatório' : null,
+                                validator: (v) {
+                                  if (_tipoEntrega != TipoEntrega.entrega) return null;
+                                  if (v == null || v.trim().isEmpty) return 'Informe o CEP';
+                                  final limpo = v.replaceAll(RegExp(r'[^0-9]'), '');
+                                  if (limpo.length != 8) return 'CEP deve ter 8 dígitos';
+                                  return null;
+                                },
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -204,7 +252,7 @@ class _TelaCheckoutState extends State<TelaCheckout> {
                               child: TextFormField(
                                 controller: _logradouroController,
                                 decoration: const InputDecoration(labelText: 'Logradouro / Rua', border: OutlineInputBorder()),
-                                validator: (v) => _tipoEntrega == TipoEntrega.entrega && v!.isEmpty ? 'Obrigatório' : null,
+                                validator: (v) => _tipoEntrega == TipoEntrega.entrega && (v == null || v.trim().isEmpty) ? 'Informe a rua' : null,
                               ),
                             ),
                           ],
@@ -216,8 +264,9 @@ class _TelaCheckoutState extends State<TelaCheckout> {
                               flex: 1,
                               child: TextFormField(
                                 controller: _numeroController,
-                                decoration: const InputDecoration(labelText: 'Número', border: OutlineInputBorder()),
-                                validator: (v) => _tipoEntrega == TipoEntrega.entrega && v!.isEmpty ? 'Obrigatório' : null,
+                                inputFormatters: [NumeroEnderecoFormatter()],
+                                decoration: const InputDecoration(labelText: 'Número', hintText: '123 ou SN', border: OutlineInputBorder()),
+                                validator: (v) => _tipoEntrega == TipoEntrega.entrega && (v == null || v.trim().isEmpty) ? 'Informe o número ou SN' : null,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -226,7 +275,7 @@ class _TelaCheckoutState extends State<TelaCheckout> {
                               child: TextFormField(
                                 controller: _bairroController,
                                 decoration: const InputDecoration(labelText: 'Bairro', border: OutlineInputBorder()),
-                                validator: (v) => _tipoEntrega == TipoEntrega.entrega && v!.isEmpty ? 'Obrigatório' : null,
+                                validator: (v) => _tipoEntrega == TipoEntrega.entrega && (v == null || v.trim().isEmpty) ? 'Informe o bairro' : null,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -234,7 +283,7 @@ class _TelaCheckoutState extends State<TelaCheckout> {
                               flex: 2,
                               child: TextFormField(
                                 controller: _complementoController,
-                                decoration: const InputDecoration(labelText: 'Complemento', border: OutlineInputBorder()),
+                                decoration: const InputDecoration(labelText: 'Complemento', hintText: 'Apto, Bloco, etc.', border: OutlineInputBorder()),
                               ),
                             ),
                           ],
@@ -273,13 +322,13 @@ class _TelaCheckoutState extends State<TelaCheckout> {
                           final item = widget.itens[index];
                           final List<Widget> subs = [];
                           if (item.adicionais.isNotEmpty) {
-                            subs.addAll(item.adicionais.map((a) => Text('Adicional: ' + a.nome + ' + R\$ ' + a.preco.toStringAsFixed(2).replaceAll('.', ','))));
+                            subs.addAll(item.adicionais.map((a) => Text('Adicional: ${a.nome} + R\$ ${a.preco.toStringAsFixed(2).replaceAll('.', ',')}')));
                           }
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: Text(item.quantidade.toString() + 'x ' + item.oferta.nome + ' — ' + item.tamanhoEscolhido.tamanho.sigla, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            title: Text('${item.quantidade}x ${item.oferta.nome} — ${item.tamanhoEscolhido.tamanho.sigla}', style: const TextStyle(fontWeight: FontWeight.bold)),
                             subtitle: subs.isNotEmpty ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: subs) : null,
-                            trailing: Text('R\$ ' + item.subtotal.toStringAsFixed(2).replaceAll('.', ','), style: const TextStyle(fontWeight: FontWeight.bold)),
+                            trailing: Text('R\$ ${item.subtotal.toStringAsFixed(2).replaceAll('.', ',')}', style: const TextStyle(fontWeight: FontWeight.bold)),
                           );
                         },
                       ),
@@ -331,8 +380,20 @@ class _TelaCheckoutState extends State<TelaCheckout> {
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _trocoController,
-                        decoration: const InputDecoration(labelText: 'Troco para R\$', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(labelText: 'Troco para R\$', hintText: 'Ex: 50,00', border: OutlineInputBorder()),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        validator: (v) {
+                          if (_formaPagamento != FormaPagamentoDraft.dinheiro) return null;
+                          if (v != null && v.trim().isNotEmpty) {
+                            final valor = double.tryParse(v.replaceAll(',', '.'));
+                            if (valor == null) return 'Valor de troco inválido (digite apenas números)';
+                            final totalCalculado = widget.total + (_tipoEntrega == TipoEntrega.entrega ? 5.0 : 0.0);
+                            if (valor < totalCalculado) {
+                              return 'O valor do troco deve ser maior que o total (R\$ ${totalCalculado.toStringAsFixed(2).replaceAll('.', ',')})';
+                            }
+                          }
+                          return null;
+                        },
                       ),
                     ],
                     const SizedBox(height: 24),
@@ -418,19 +479,102 @@ class _TelaCheckoutState extends State<TelaCheckout> {
 
       final pedidoId = await _pedidoService.criarPedido(draft, caixaId);
 
-      final msgOperacional = WhatsAppMessageBuilder.buildOperacional(draft, numeroPedido: pedidoId.length >= 8 ? pedidoId.substring(0, 8) : pedidoId);
-      final msgCliente = WhatsAppMessageBuilder.buildCliente(draft, numeroPedido: pedidoId.length >= 8 ? pedidoId.substring(0, 8) : pedidoId);
+      final numCurto = pedidoId.length >= 8 ? pedidoId.substring(0, 8).toUpperCase() : pedidoId;
+      final msgCliente = WhatsAppMessageBuilder.buildCliente(draft, numeroPedido: numCurto);
 
-      
-      await widget.whatsappService.enviarMensagem(telefone: draft.cliente!.telefoneWhatsApp, mensagem: msgCliente);
+      bool whatsappAbriu = false;
+      try {
+        await widget.whatsappService.enviarMensagem(telefone: draft.cliente!.telefoneWhatsApp, mensagem: msgCliente);
+        whatsappAbriu = true;
+      } catch (_) {
+        whatsappAbriu = false;
+      }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pedido criado com sucesso!')));
-      Navigator.pop(context, true);
+
+      if (whatsappAbriu) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pedido criado e confirmação enviada no WhatsApp!'),
+            backgroundColor: AppTheme.success,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        Navigator.pop(context, true);
+      } else {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: AppTheme.success, size: 28),
+                SizedBox(width: 8),
+                Text('Pedido Realizado!'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pedido #$numCurto registrado com sucesso na cozinha!',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'O WhatsApp não pôde ser aberto automaticamente pelo navegador (pop-up bloqueado ou aplicativo fechado). Você pode abrir agora pelo botão abaixo:',
+                  style: TextStyle(fontSize: 14, color: Colors.black87),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('CONCLUIR'),
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.chat),
+                label: const Text('ABRIR WHATSAPP'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                onPressed: () {
+                  final fone = draft.cliente!.telefoneWhatsApp.replaceAll(RegExp(r'[^0-9]'), '');
+                  final foneNorm = fone.length <= 11 && !fone.startsWith('55') ? '55$fone' : fone;
+                  final uri = Uri.parse('https://wa.me/$foneNorm?text=${Uri.encodeComponent(msgCliente)}');
+                  launchUrl(uri, mode: LaunchMode.platformDefault, webOnlyWindowName: '_blank');
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        );
+        if (mounted) Navigator.pop(context, true);
+      }
     } catch (e) {
       if (!mounted) return;
+      String mensagemAmigavel = 'Não foi possível finalizar o pedido no momento.';
+      final raw = e.toString();
+      if (raw.contains('Nenhum caixa aberto') || raw.contains('caixa')) {
+        mensagemAmigavel = 'O caixa do PDV precisa ser aberto para registrar este pedido.';
+      } else if (raw.contains('estoque') || raw.contains('Estoque') || raw.contains('esgotado')) {
+        mensagemAmigavel = 'Aviso de Estoque: Um dos itens escolhidos não possui mais unidades disponíveis.';
+      } else if (raw.contains('violates unique constraint') || raw.contains('duplicate key')) {
+        mensagemAmigavel = 'Houve um conflito temporário ao registrar o pedido. Tente novamente em instantes.';
+      } else if (raw.contains('SocketException') || raw.contains('Connection refused') || raw.contains('Failed to connect')) {
+        mensagemAmigavel = 'Falha de Conexão: Não foi possível comunicar com o servidor da loja.';
+      } else {
+        mensagemAmigavel = raw.replaceAll('Exception: ', '').replaceAll('BusinessRuleException: ', '');
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Nao foi possivel finalizar o pedido. Verifique os dados e o caixa e tente novamente.'),
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(child: Text(mensagemAmigavel, style: const TextStyle(fontWeight: FontWeight.bold))),
+          ],
+        ),
         backgroundColor: Colors.red.shade800,
         duration: const Duration(seconds: 4),
       ));

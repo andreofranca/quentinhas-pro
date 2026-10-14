@@ -172,28 +172,28 @@ class _TelaLoginState extends State<TelaLogin> {
               if (MediaQuery.of(context).size.width > 800)
                 Container(
                   width: 400,
-                  height: 500,
+                  constraints: const BoxConstraints(minHeight: 520),
                   decoration: const BoxDecoration(
                     color: corPrimaria,
                     borderRadius: BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
                   ),
-                  padding: const EdgeInsets.all(40.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 36.0, vertical: 32.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.restaurant, size: 60, color: Colors.white),
-                      const SizedBox(height: 20),
+                      const Icon(Icons.restaurant, size: 52, color: Colors.white),
+                      const SizedBox(height: 16),
                       const Text(
                         "Quentinhas Pro",
-                        style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                        style: TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
                       const Text(
                         "Gestão inteligente para o seu negócio de alimentação.",
-                        style: TextStyle(color: Colors.white70, fontSize: 18),
+                        style: TextStyle(color: Colors.white70, fontSize: 16),
                       ),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 32),
                       _buildDiferencial(Icons.receipt_long, "Pedidos rápidos"),
                       _buildDiferencial(Icons.inventory, "Controle de estoque"),
                       _buildDiferencial(Icons.kitchen, "Monitor de produção (KDS)"),
@@ -203,7 +203,7 @@ class _TelaLoginState extends State<TelaLogin> {
                 ),
               Container(
                 width: 400,
-                height: 500,
+                constraints: const BoxConstraints(minHeight: 520),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: MediaQuery.of(context).size.width > 800 
@@ -213,7 +213,7 @@ class _TelaLoginState extends State<TelaLogin> {
                     BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, 10))
                   ]
                 ),
-                padding: const EdgeInsets.all(40.0),
+                padding: const EdgeInsets.symmetric(horizontal: 36.0, vertical: 32.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center, 
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -292,7 +292,7 @@ class _TelaLoginState extends State<TelaLogin> {
         children: [
           Icon(icon, color: Colors.white70, size: 20),
           const SizedBox(width: 12),
-          Text(text, style: const TextStyle(color: Colors.white70, fontSize: 16)),
+          Expanded(child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 16))),
         ],
       ),
     );

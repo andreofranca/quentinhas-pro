@@ -75,7 +75,7 @@ class _TelaCaixaState extends State<TelaCaixa> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: isAberto ? AppTheme.success.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+                      color: isAberto ? AppTheme.success.withAlpha(26) : Colors.grey.withAlpha(26),
                       shape: BoxShape.circle
                     ),
                     child: Icon(isAberto ? Icons.point_of_sale : Icons.lock, size: 80, color: isAberto ? AppTheme.success : Colors.grey),

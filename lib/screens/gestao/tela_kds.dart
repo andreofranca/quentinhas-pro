@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/dominio.dart';
 import '../../services/dashboard_pedido_service.dart';
-import '../../services/pedido_service.dart';
+import '../../services/whatsapp_service.dart';
 import '../../theme/app_theme.dart';
 
 class TelaKds extends StatefulWidget {
@@ -11,7 +11,7 @@ class TelaKds extends StatefulWidget {
 
 class _TelaKdsState extends State<TelaKds> {
   final DashboardPedidoService _dashboardService = DashboardPedidoService();
-  final PedidoService _pedidoService = PedidoService();
+  final WhatsAppService _whatsapp = WhatsAppUrlLauncherService();
   List<Pedido> _pedidos = [];
   bool _isLoading = true;
 
@@ -33,15 +33,64 @@ class _TelaKdsState extends State<TelaKds> {
 
   Future<void> _avancarStatus(Pedido p) async {
     String novoStatus;
-    if (p.statusLogistico == 'CONFIRMADO') novoStatus = 'EM_PRODUCAO';
-    else if (p.statusLogistico == 'EM_PRODUCAO') novoStatus = 'PRONTO';
-    else return;
+    if (p.statusLogistico == 'CONFIRMADO') {
+      novoStatus = 'EM_PRODUCAO';
+    } else if (p.statusLogistico == 'EM_PRODUCAO') {
+      novoStatus = 'PRONTO';
+    } else if (p.statusLogistico == 'PRONTO') {
+      novoStatus = 'ENTREGUE';
+    } else {
+      return;
+    }
 
     try {
       await _dashboardService.atualizarStatus(p.numeroPedido, novoStatus);
       _carregar();
+      if (novoStatus == 'PRONTO' && p.telefoneCliente.isNotEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Pedido #${p.numeroPedido.length >= 8 ? p.numeroPedido.substring(0, 8).toUpperCase() : p.numeroPedido} marcado como PRONTO!'),
+              action: SnackBarAction(
+                label: 'AVISAR WHATSAPP',
+                textColor: Colors.amber,
+                onPressed: () => _notificarCliente(p, statusSobrescrito: 'PRONTO'),
+              ),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _notificarCliente(Pedido p, {String? statusSobrescrito}) async {
+    if (p.telefoneCliente.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cliente não possui telefone cadastrado.')));
+      return;
+    }
+    final status = statusSobrescrito ?? p.statusLogistico;
+    String statusTexto = status;
+    if (status == 'CONFIRMADO') {
+      statusTexto = 'está confirmado e entrou na fila de produção da cozinha';
+    } else if (status == 'EM_PRODUCAO') {
+      statusTexto = 'está sendo preparado com carinho pela nossa cozinha 🍳';
+    } else if (status == 'PRONTO') {
+      statusTexto = p.tipoEntrega == 'ENTREGA'
+          ? 'está pronto e saindo para entrega! 🛵'
+          : 'está PRONTO para retirada no balcão! 🍽️';
+    } else if (status == 'ENTREGUE') {
+      statusTexto = 'foi finalizado/entregue com sucesso! Bom apetite! 🎉';
+    }
+
+    final numCurto = p.numeroPedido.length >= 8 ? p.numeroPedido.substring(0, 8).toUpperCase() : p.numeroPedido;
+    final msg = 'Olá, ${p.nomeCliente.isNotEmpty ? p.nomeCliente : "Cliente"}!\n\nAtualização do seu pedido *#$numCurto*:\nEle $statusTexto.\n\nAgradecemos a preferência — *Quentinhas Pro*!';
+    try {
+      await _whatsapp.enviarMensagem(telefone: p.telefoneCliente, mensagem: msg);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Aviso ao abrir WhatsApp: $e')));
     }
   }
 
@@ -124,7 +173,21 @@ class _TelaKdsState extends State<TelaKds> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('#${p.numeroPedido.substring(0, 8).toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Row(
+                              children: [
+                                Text('#${p.numeroPedido.length >= 8 ? p.numeroPedido.substring(0, 8).toUpperCase() : p.numeroPedido}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                if (p.telefoneCliente.isNotEmpty) ...[
+                                  const SizedBox(width: 6),
+                                  IconButton(
+                                    icon: const Icon(Icons.chat, color: Colors.green, size: 18),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    tooltip: 'Avisar Cliente no WhatsApp',
+                                    onPressed: () => _notificarCliente(p),
+                                  ),
+                                ],
+                              ],
+                            ),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(color: tempo > 15 ? Colors.red.shade50 : Colors.green.shade50, borderRadius: BorderRadius.circular(12)),
@@ -137,7 +200,7 @@ class _TelaKdsState extends State<TelaKds> {
                           children: [
                             Icon(p.tipoEntrega == 'ENTREGA' ? Icons.moped : Icons.storefront, size: 16, color: Colors.grey),
                             const SizedBox(width: 4),
-                            Expanded(child: Text('${p.nomeCliente ?? 'Balcão'} (${p.tipoEntrega})', style: const TextStyle(color: Colors.black87))),
+                            Expanded(child: Text('${p.nomeCliente.isNotEmpty ? p.nomeCliente : 'Balcão'} (${p.tipoEntrega})', style: const TextStyle(color: Colors.black87))),
                           ],
                         ),
                         const Divider(height: 24),
@@ -165,6 +228,8 @@ class _TelaKdsState extends State<TelaKds> {
                           SizedBox(width: double.infinity, child: ElevatedButton.icon(icon: const Icon(Icons.play_arrow), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white), onPressed: () => _avancarStatus(p), label: const Text('INICIAR PREPARO'))),
                         if (p.statusLogistico == 'EM_PRODUCAO')
                           SizedBox(width: double.infinity, child: ElevatedButton.icon(icon: const Icon(Icons.check), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success, foregroundColor: Colors.white), onPressed: () => _avancarStatus(p), label: const Text('MARCAR PRONTO'))),
+                        if (p.statusLogistico == 'PRONTO')
+                          SizedBox(width: double.infinity, child: ElevatedButton.icon(icon: Icon(p.tipoEntrega == 'ENTREGA' ? Icons.delivery_dining : Icons.done_all), style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white), onPressed: () => _avancarStatus(p), label: Text(p.tipoEntrega == 'ENTREGA' ? 'DESPACHAR ENTREGA' : 'FINALIZAR RETIRADA'))),
                       ],
                     ),
                   )

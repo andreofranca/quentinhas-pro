@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/catalogo_service.dart';
 import 'package:lanchonete_controle/services/pedido_service.dart';
-import 'package:lanchonete_controle/screens/gestao/tela_gestao_cardapio.dart';
 import '../../main.dart';
 import '../../models/models_quentinha.dart';
 import '../../models/dominio.dart';
@@ -88,7 +87,7 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(' () adicionado!'),
+        content: Text('${oferta.nome} (${tamanho.tamanho.sigla}) adicionado!'),
         backgroundColor: AppTheme.success,
         duration: const Duration(milliseconds: 800),
       ),
@@ -185,7 +184,7 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
                     context: context,
                     builder: (context) => AlertDialog(
                       title: const Text('Caixa Fechado'),
-                      content: Text('O caixa foi fechado. Quebra: R\$ '),
+                      content: Text('O caixa foi fechado. Quebra: R\$ ${(res['quebra'] ?? 0.0).toStringAsFixed(2).replaceAll('.', ',')}'),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
@@ -198,7 +197,7 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('Erro ao fechar caixa: '),
+                    content: Text('Erro ao fechar caixa: $e'),
                     backgroundColor: Colors.red,
                   ));
                 }
@@ -228,7 +227,7 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
           if (!isDesktopOrTablet)
             IconButton(
               icon: Badge(
-                label: Text(''),
+                label: Text('${_carrinho.length}'),
                 isLabelVisible: _carrinho.isNotEmpty,
                 child: const Icon(Icons.shopping_bag_outlined),
               ),
@@ -285,7 +284,7 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
                             return const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()));
                           }
                           if (snapshot.hasError) {
-                            return Center(child: Padding(padding: EdgeInsets.all(40), child: Text('Erro ao carregar cardápio. \n', textAlign: TextAlign.center, style: TextStyle(color: Colors.red))));
+                            return Center(child: Padding(padding: const EdgeInsets.all(40), child: Text('Erro ao carregar cardápio: ${snapshot.error}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.red))));
                           }
                           
                           final catalogoCompleto = snapshot.data;
@@ -302,12 +301,26 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
                             porCategoria[oferta.categoria]!.add(oferta);
                           }
 
+                          final categoriasOrdenadas = porCategoria.keys.toList()
+                            ..sort((a, b) {
+                              if (a == 'MARMITA' || a == 'QUENTINHA') return -1;
+                              if (b == 'MARMITA' || b == 'QUENTINHA') return 1;
+                              return a.compareTo(b);
+                            });
+
                           List<Widget> sections = [];
-                          for (var categoria in porCategoria.keys) {
+                          for (var categoria in categoriasOrdenadas) {
+                            String tituloSecao = categoria;
+                            if (categoria == 'MARMITA' || categoria == 'QUENTINHA') {
+                              tituloSecao = '🍱 QUENTINHAS DO DIA';
+                            } else if (categoria == 'BEBIDA') {
+                              tituloSecao = '🥤 BEBIDAS GELADAS';
+                            }
+
                             sections.add(
                               Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 16.0),
-                                child: Text(categoria, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                                child: Text(tituloSecao, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.primary)),
                               ),
                             );
                             final itensCategoria = porCategoria[categoria]!;
@@ -404,10 +417,10 @@ class _TelaDashboardQuentinhasState extends State<TelaDashboardQuentinhas> {
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildKPIItem('PEDIDOS HOJE', '', AppTheme.primary),
-              _buildKPIItem('EM PRODUÇÃO', '', AppTheme.warning),
-              _buildKPIItem('PRONTOS', '', AppTheme.success),
-              _buildKPIItem('FATURAMENTO', 'R\$ ', AppTheme.textPrimary),
+              _buildKPIItem('PEDIDOS HOJE', '${hoje.length}', AppTheme.primary),
+              _buildKPIItem('EM PRODUÇÃO', '$emProducao', AppTheme.warning),
+              _buildKPIItem('PRONTOS', '$prontos', AppTheme.success),
+              _buildKPIItem('FATURAMENTO', 'R\$ ${faturamento.toStringAsFixed(2).replaceAll('.', ',')}', AppTheme.textPrimary),
             ],
           );
         }
