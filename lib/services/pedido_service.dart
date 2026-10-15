@@ -73,6 +73,7 @@ class PedidoService {
         return {
           'variacaoId': item.tamanhoEscolhido.ofertaId,
           'quantidade': item.quantidade,
+          'adicionaisIds': item.adicionais.map((a) => a.id).toList(),
           'precoUnitario': item.tamanhoEscolhido.preco,
           'subtotal': (item.quantidade * item.tamanhoEscolhido.preco),
         };

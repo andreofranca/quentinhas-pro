@@ -211,13 +211,50 @@ public class PedidoService {
         }
     }
 
+    private static final java.util.Set<String> STATUS_VALIDOS = java.util.Set.of(
+        "RASCUNHO", "CONFIRMADO", "EM_PRODUCAO", "PRONTO", "SAIU_ENTREGA", "ENTREGUE", "CANCELADO"
+    );
+
     public void atualizarStatusOperacional(UUID pedidoId, String status) {
-        int updated = jdbcTemplate.update(
-            "UPDATE pedidos SET status_operacional = ? WHERE id = ?",
-            status, pedidoId
+        if (status == null || !STATUS_VALIDOS.contains(status.trim().toUpperCase())) {
+            throw new IllegalArgumentException("Status operacional inválido: " + status);
+        }
+        String statusFormatado = status.trim().toUpperCase();
+
+        String statusAtual = jdbcTemplate.query(
+            "SELECT status_operacional FROM pedidos WHERE id = ?",
+            rs -> rs.next() ? rs.getString("status_operacional") : null,
+            pedidoId
         );
-        if (updated == 0) {
+
+        if (statusAtual == null) {
             throw new IllegalArgumentException("Pedido não encontrado");
         }
+
+        if (statusFormatado.equals(statusAtual)) {
+            return;
+        }
+
+        if ("ENTREGUE".equals(statusAtual) || "CANCELADO".equals(statusAtual)) {
+            throw new BusinessRuleException("Pedido já finalizado no status " + statusAtual + " não permite alteração operacional.");
+        }
+
+        boolean transicaoValida = switch (statusAtual) {
+            case "RASCUNHO" -> statusFormatado.equals("CONFIRMADO") || statusFormatado.equals("CANCELADO");
+            case "CONFIRMADO" -> statusFormatado.equals("EM_PRODUCAO") || statusFormatado.equals("CANCELADO");
+            case "EM_PRODUCAO" -> statusFormatado.equals("PRONTO") || statusFormatado.equals("CANCELADO");
+            case "PRONTO" -> statusFormatado.equals("SAIU_ENTREGA") || statusFormatado.equals("ENTREGUE") || statusFormatado.equals("CANCELADO");
+            case "SAIU_ENTREGA" -> statusFormatado.equals("ENTREGUE") || statusFormatado.equals("CANCELADO");
+            default -> false;
+        };
+
+        if (!transicaoValida) {
+            throw new BusinessRuleException("Transição inválida de " + statusAtual + " para " + statusFormatado);
+        }
+
+        jdbcTemplate.update(
+            "UPDATE pedidos SET status_operacional = ? WHERE id = ?",
+            statusFormatado, pedidoId
+        );
     }
 }

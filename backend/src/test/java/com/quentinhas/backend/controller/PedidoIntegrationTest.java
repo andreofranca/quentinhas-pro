@@ -251,4 +251,80 @@ class PedidoIntegrationTest extends com.quentinhas.backend.AbstractIntegrationTe
                 .content(payload))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @WithMockUser
+    @DisplayName("Deve validar ciclo operacional completo e rejeicao de transicoes invalidas")
+    void testCicloOperacionalCompletoERejeicoes() throws Exception {
+        // Criar pedido
+        PedidoRequest req = new PedidoRequest(caixaId, new ClienteRequest("Cliente Teste", "11988887777"), "RETIRADA", BigDecimal.ZERO, null, "",
+                List.of(new ItemPedidoRequest(ofertaPId, 1, java.util.List.of(), "")),
+                null, "APP", "evt-ciclo-teste");
+
+        String respStr = mockMvc.perform(post("/api/pedidos")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID pedidoId = UUID.fromString(objectMapper.readTree(respStr).get("pedidoId").asText());
+
+        // Estoque apos criacao (deve ter diminuido 1)
+        Integer estoqueInicial = jdbcTemplate.queryForObject(
+            "SELECT estoque_atual FROM produtos WHERE id = (SELECT produto_id FROM produto_variacoes WHERE id = ?)",
+            Integer.class, ofertaPId
+        );
+
+        // 1. Tentar transicao invalida em pedido existente -> 400
+        mockMvc.perform(post("/api/pedidos/" + pedidoId + "/transicao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\": \"STATUS_INVENTADO\"}"))
+                .andExpect(status().isBadRequest());
+
+        // 2. Tentar pular transicao (CONFIRMADO direto para ENTREGUE) -> 422
+        mockMvc.perform(post("/api/pedidos/" + pedidoId + "/transicao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\": \"ENTREGUE\"}"))
+                .andExpect(status().isUnprocessableEntity());
+
+        // 3. Transicao valida 1: CONFIRMADO -> EM_PRODUCAO -> 200
+        mockMvc.perform(post("/api/pedidos/" + pedidoId + "/transicao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\": \"EM_PRODUCAO\"}"))
+                .andExpect(status().isOk());
+
+        String st1 = jdbcTemplate.queryForObject("SELECT status_operacional FROM pedidos WHERE id = ?", String.class, pedidoId);
+        org.junit.jupiter.api.Assertions.assertEquals("EM_PRODUCAO", st1);
+
+        // 4. Transicao valida 2: EM_PRODUCAO -> PRONTO -> 200
+        mockMvc.perform(post("/api/pedidos/" + pedidoId + "/transicao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\": \"PRONTO\"}"))
+                .andExpect(status().isOk());
+
+        String st2 = jdbcTemplate.queryForObject("SELECT status_operacional FROM pedidos WHERE id = ?", String.class, pedidoId);
+        org.junit.jupiter.api.Assertions.assertEquals("PRONTO", st2);
+
+        // 5. Transicao valida 3: PRONTO -> ENTREGUE -> 200
+        mockMvc.perform(post("/api/pedidos/" + pedidoId + "/transicao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\": \"ENTREGUE\"}"))
+                .andExpect(status().isOk());
+
+        String st3 = jdbcTemplate.queryForObject("SELECT status_operacional FROM pedidos WHERE id = ?", String.class, pedidoId);
+        org.junit.jupiter.api.Assertions.assertEquals("ENTREGUE", st3);
+
+        // 6. Tentar transicao apos ENTREGUE -> 422
+        mockMvc.perform(post("/api/pedidos/" + pedidoId + "/transicao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\": \"EM_PRODUCAO\"}"))
+                .andExpect(status().isUnprocessableEntity());
+
+        // 7. Validar que estoque NAO sofreu nova baixa durante as transicoes operacionais
+        Integer estoqueFinal = jdbcTemplate.queryForObject(
+            "SELECT estoque_atual FROM produtos WHERE id = (SELECT produto_id FROM produto_variacoes WHERE id = ?)",
+            Integer.class, ofertaPId
+        );
+        org.junit.jupiter.api.Assertions.assertEquals(estoqueInicial, estoqueFinal);
+    }
 }
